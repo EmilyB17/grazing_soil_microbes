@@ -24,33 +24,33 @@ require(grid) # for the arrows in ggplot, I have not looked into this package fu
 # PERMANOVA (adonis function) can only examine factors - make sure all variables are factors
 # my grouping variables are Plot, Sample, Block, Treatment, and GrazeTime 
 # my environmental variables are ammonium.ppm and gravimetric.moisture
-dat <- read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/environmental_data.txt",
+data <- read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/environmental_data.txt",
                   sep = "\t", header = TRUE)
-dat$ammonium.ppm <- factor(dat$ammonium.ppm)
-dat$gravimetric.moisture <- factor(dat$gravimetric.moisture)
-dat$Block <- factor(dat$Block)
-dat$bd <- NULL
-dat$ph <- NULL
-dat$Plot <- NULL
-dat$Sample <- NULL
+data$ammonium.ppm <- factor(data$ammonium.ppm)
+data$gravimetric.moisture <- factor(data$gravimetric.moisture)
+data$Block <- factor(data$Block)
+data$bd <- NULL
+data$ph <- NULL
+data$Plot <- NULL
+data$Sample <- NULL
 
 
 # enzyme data (aka: abundance data or species data)
 # this data is already normalized to relative abundance
-allgrz <- read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/enzymes_relativeabundance.txt",
+abund_table <- read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/enzymes_relativeabundance.txt",
                      sep = "\t", header = TRUE)
-allgrz$Plot <- NULL
-allgrz$Block <- NULL
-allgrz$Treatment <- NULL
-allgrz$Sample <- NULL
-allgrz$GrazeTime <- NULL
-str(allgrz)
+abund_table$Plot <- NULL
+abund_table$Block <- NULL
+abund_table$Treatment <- NULL
+abund_table$Sample <- NULL
+abund_table$GrazeTime <- NULL
+str(abund_table)
 
 # function metaMDS() to perform an ordination on relative abundance data
-ord <- metaMDS(allgrz)
+ord <- metaMDS(abund_table)
 
 # function vegdist() to calculate a Bray-Curtis distance matrix of relative abundance data
-dis <- vegdist(allgrz)
+dis <- vegdist(abund_table)
 
 # calculate a stressplot to examine how well your ordination fits the actual dissimilarity data
 # if the stressplot R2 is low, this means your dissimilarity data does not fit well into 
@@ -59,19 +59,19 @@ stressplot(ord, dis)
 
 # adonis() function calculates a permanova on the environmental and/or grouping variables
 adonis(dis ~ ammonium.ppm + gravimetric.moisture + trt.grz,
-       data = dat, permutations = 999)
+       data = data, permutations = 999)
 
 # the envfit() function fits your environmental and/or grouping data onto the ordination
 # this gives p values that you can later use to plot onto the ordination 
 # as correlating environmental variables
-eft <- envfit(ord ~., data = dat, perm = 1000, na.rm = TRUE)
+eft <- envfit(ord ~., data = data, perm = 1000, na.rm = TRUE)
 eft
 
 # This is the end of creating a basic ordination
 # Quickly we will plot this in vegan
 plot(ord, type = "p", display = "sites") # all of the ordination points
 plot(ord, type = "text", display = "species", lty = 1) # plots enzymes 
-with(dat, ordiellipse(ord, Treatment, kind = "se", conf = 0.95, label = TRUE)) # adds ellipses by grouping variable 
+with(data, ordiellipse(ord, Treatment, kind = "se", conf = 0.95, label = TRUE)) # adds ellipses by grouping variable 
 # with 95% confidence intervals
 plot(eft, p.max=0.05, col="black", cex=0.8) # plots significant environmental variables from the envfit() function
 
@@ -80,9 +80,9 @@ plot(eft, p.max=0.05, col="black", cex=0.8) # plots significant environmental va
 
 # First pull the coordinates from the metaMDS() ordination into 
 # your grouping & environmental variables dataframe
-dat$NMDS1 <- ord$points[,1]
-dat$NMDS2 <- ord$points[,2]
-head(dat) # you should see NMDS1 and NMDS2 as columns 
+data$NMDS1 <- ord$points[,1]
+data$NMDS2 <- ord$points[,2]
+head(data) # you should see NMDS1 and NMDS2 as columns 
 # this allows us to plot all rows of data in ordination form
 
 # This pulls x and y coordinates for each 
@@ -103,20 +103,20 @@ veganCovEllipse <- function (cov, center = c(0, 0), scale = 1, npoints = 100)
 # data for ellipses
 # loop: for each level of your grouping variable, save the correct coordinates for an ellipse 
 # in the dataframe df_ell
-# my grouping variable is Treatment and my environmental variables dataframe is dat
+# my grouping variable is Treatment and my environmental variables dataframe is data
 
 df_ell <- data.frame() # creates empty dataframe to fill in the loop
-for(g in levels(dat$Treatment)){
-  df_ell <- rbind(df_ell, cbind(as.data.frame(with(dat [dat$Treatment==g,],
+for(g in levels(data$Treatment)){
+  df_ell <- rbind(df_ell, cbind(as.data.frame(with(data [data$Treatment==g,],
                                                    veganCovEllipse(cov.wt(cbind(NMDS1,NMDS2),wt=rep(1/length(NMDS1),length(NMDS1)))$cov,center=c(mean(NMDS1),mean(NMDS2)))))
                                 ,Treatment=g))
 }
 str(df_ell) # your dataframe should have 3 columns: NMDS1, NMDS2, and your grouping variable
 
 # This pulls data to label the centers of the ellipses
-# dat is the environmental/grouping variables dataframe
-NMDS.mean = aggregate(dat[,c("NMDS1", "NMDS2")],
-                      list(group = dat$Treatment), mean)
+# data is the environmental/grouping variables dataframe
+NMDS.mean = aggregate(data[,c("NMDS1", "NMDS2")],
+                      list(group = data$Treatment), mean)
 
 
 # plot in ggplot
@@ -125,7 +125,7 @@ NMDS.mean = aggregate(dat[,c("NMDS1", "NMDS2")],
 # or comment out lines one at a time to work on them
 
 # hint: everywhere you see "Treatment", you will need to replace with your own grouping variable
-ggplot(data = dat, aes(x = NMDS1, y = NMDS2)) + # this sets the basic plot
+ggplot(data = data, aes(x = NMDS1, y = NMDS2)) + # this sets the basic plot
   geom_polygon(data = df_ell, aes(fill = Treatment, group = Treatment, alpha=Treatment)) + #add ellipses, grouped by your grouping variable
   # if you don't want the polygon filled with a color, use geom_path instead of geom_polygon
   geom_point(aes(x = NMDS1, y = NMDS2, shape = Treatment, color = Treatment), size = 1) +  #adds ordination points, shaped by grouping variable
