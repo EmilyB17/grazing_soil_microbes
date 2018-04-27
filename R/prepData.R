@@ -1,3 +1,5 @@
+
+# Function by Shannon Albeke salbeke@uwyo.edu
 # writing function to transform Emily enzyme data to be workable
 
 # data = dataframe of enzyme data 
