@@ -5,8 +5,9 @@
 # Within-subjects variable: GrazeTime (each plot repeated four GrazeTimes)
 
 require(ggplot2)
-setwd("C:/Users/emily/OneDrive/Desktop/Home")
-#source("C:/Users/emily/OneDrive/Desktop/Home/sourcing_data.R")
+require(tidyverse)
+require(dplyr)
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData.R")
 
 # ---- Microbial Biomass C ----
 toc <- read.table(file = "toc.txt", sep = "\t", header = TRUE, stringsAsFactors = TRUE)
@@ -155,20 +156,103 @@ with(don, pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", pair
 with(don, pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # 1WK-4Wk and 24H-4Wk are significant
 
 # ---- Enzymes ----
-enz <- read.table(file = "enzymes_vertical.txt", sep = "\t", header = TRUE, stringsAsFactors = TRUE)
-# make horizontal
-enz <- spread(data = enz, key = Substrate, value = Enzyme_nm_g_hr)
+# Read in data
+enz.vert <- prepData(read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/enzymes_vertical.txt", sep = "\t", header = TRUE, stringsAsFactors = TRUE))
 
-# enzyme loop
-# write loop to look at each substrate vs RunDay
-sub <- unique(enz$Substrate)
+
+# Examine data relative to the PRE baseline
+pre <- aggregate(Enzyme_nm_g_hr ~ Plot + Substrate, data = enz.vert[enz.vert$GrazeTime %in% "PRE",], mean)
+pre$pre_mean <- pre$Enzyme_nm_g_hr
+pre$Enzyme_nm_g_hr <- NULL
+dat <- aggregate(Enzyme_nm_g_hr ~ GrazeTime + Plot + Treatment + Substrate, 
+                 data = enz.vert[!enz.vert$GrazeTime %in% "PRE",], mean) 
+
+all <- merge(pre, dat, by = c("Plot", "Substrate"))
+all$delta <- all$Enzyme_nm_g_hr - all$pre_mean
+enz.vert <- all
+enz.vert$pre_mean <- NULL
+enz.vert$Enzyme_nm_g_hr <- NULL
+
+# Make horizontal
+#enz <- spread(data = enz.vert, key = Substrate, value = delta)
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+
+# Loop to look at each substrate in the repeated-measures ANOVA format
+sub <- unique(enz.vert$Substrate)
 # save the model objects
 mods<- list()
 for(i in 1:length(sub)) {
-  mods<- c(mods, list(aov(Enzyme_nm_g_hr ~ RunDay, data = filter(enz, Substrate == sub[i]))))
-}
+  mods<- c(mods, list(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), 
+                          data = filter(enz.vert, Substrate == sub[i]))))
 
+}
 names(mods)<- sub
 lapply(mods, summary)
+
+# CBH, NAG, PER1, PHOS: GrazeTime
+# Do individual post-hoc tests for the substrates that showed significance with GrazeTime
+
+## CBH
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "CBH",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# Holm procedure
+with(enz.vert[enz.vert$Substrate %in% "CBH",], 
+     pairwise.t.test(delta, GrazeTime, paired = T)) # 24H-1WK, 24H-4WK
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "CBH",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) #24H-1WK, 24H-4WK
+
+## NAG
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "NAG",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# Holm procedure
+with(enz.vert[enz.vert$Substrate %in% "NAG",], 
+     pairwise.t.test(delta, GrazeTime, paired = T)) # No significance, interesting since aov showed significance with GrazeTime
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "NAG",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # Still no significance
+
+## PER1
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "PER1",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# Holm procedure
+with(enz.vert[enz.vert$Substrate %in% "PER1",], 
+     pairwise.t.test(delta, GrazeTime, paired = T)) # No significance
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "PER1",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # Still no significance
+
+## PHOS
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "PHOS",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# Holm procedure
+with(enz.vert[enz.vert$Substrate %in% "PHOS",], 
+     pairwise.t.test(delta, GrazeTime, paired = T)) # 24H-1WK, 1WK-4WK
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "PHOS",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # 24H-1WK, 1WK-4WK
+
 
 
