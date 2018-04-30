@@ -1,0 +1,583 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Below are a series of analyses completed on the following data:
+* Microbial Biomass C
+* Microbial Biomass N
+* Non-purgeable Organic Carbon (NPOC)
+* Dissolved Organic Nitrogen (DON)
+* Extracellular Enzymes
+* Microbial Efficiency (enzyme activity per unit microbial biomass)
+
+Analyses include repeated-measures ANOVA and one-way ANOVA, completed on the data averaged by plots, showing no averages, and/or related to the baseline data (PRE GrazeTime)
+
+*Between-subjects variable: Treatment (each plot has a different treatment)*
+*Within-subjects variable: GrazeTime (each plot repeated four GrazeTimes)*
+
+```{r}
+# Preparing the data
+require(ggplot2)
+require(tidyverse)
+require(dplyr)
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData.R")
+
+toc <- prepData(read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/NPOC_DON_MBC.txt", sep = "\t", header = TRUE, stringsAsFactors = TRUE))
+```
+Working with Microbial Biomass Carbon (MBC)
+    **First: repeated-measures ANOVA on all data averaged by Plot and relative to the PRE baseline**
+    
+The printout shows both the ANOVA summary and the pairwise t test with Bonferroni correction
+
+
+```{r}
+# ---- Microbial Biomass C ----
+mbc <- toc[, -c(6:15, 17)]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(mbc_mgg ~ Plot, data = mbc[mbc$GrazeTime %in% "PRE",], mean),
+             aggregate(mbc_mgg ~ GrazeTime + Plot + Treatment, 
+                       data = mbc[!mbc$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$mbc_mgg.y - all$mbc_mgg.x
+all$mbc_mgg.x <- NULL
+all$mbc_mgg.y <- NULL
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+mod.mbc <- aov(all$delta ~ all$Treatment * all$GrazeTime + Error(all$delta / all$GrazeTime))
+summary(mod.mbc)
+
+# Bonferroni test - is the most conservative
+with(all, pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE))
+with(all, pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # 24H and 4Wk are significant
+```
+
+Now we will look at the raw MBC data and do a single one-way ANOVA for each GrazeTime, comparing only the treatments to each other.
+
+Only the PRE GrazeTime has significance. However, the pairwise t test for PRE does not show significance.
+```{r}
+# Loop to examine each Treatment by GrazeTime - no averaging
+ggplot(data = mbc, aes(x = Treatment, y = mbc_mgg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+grz <- unique(mbc$GrazeTime)
+# save the model objects
+mods<- list()
+for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(mbc_mgg ~ Treatment, 
+                          data = filter(mbc, GrazeTime == grz[i]))))
+  
+}
+names(mods)<- grz
+lapply(mods, summary) # Significance: PRE
+
+# Individual post-hoc tests
+with(mbc, pairwise.t.test(mbc_mgg, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) # no significance
+
+```
+Next: Doing the same singlular one-way ANOVAS with the data relative to the PRE baseline data. There is no significance
+```{r}
+## Same loop but relative to PRE baseline
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+grz <- unique(all$GrazeTime)
+# save the model objects
+mods<- list()
+for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(delta ~ Treatment, 
+                          data = filter(all, GrazeTime == grz[i]))))
+  
+}
+names(mods)<- grz
+lapply(mods, summary) # No significance
+```
+
+*Microbial Biomass N (MBN)*
+
+This follows the exact procedures as above.
+
+For the repeated-measures ANOVA where averaged data is considered relative to the PRE baseline, the only significance is with GrazeTime, and all GrazeTimes are strongly significant to each other.
+```{r}
+# ---- Microbial Biomass N ----
+mbn <- toc[, -c(6:16)]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(mbn_mgg ~ Plot, data = mbn[mbn$GrazeTime %in% "PRE",], mean),
+             aggregate(mbn_mgg ~ GrazeTime + Plot + Treatment, 
+                       data = mbn[!mbn$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$mbn_mgg.y - all$mbn_mgg.x
+all$mbn_mgg.x <- NULL
+all$mbn_mgg.y <- NULL
+
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+mod.mbn <- aov(all$delta ~ all$Treatment * all$GrazeTime + Error(all$delta / all$GrazeTime))
+summary(mod.mbn) # GrazeTime is significant
+
+# Bonferroni test - is the most conservative
+with(all, pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) # no significance
+with(all, pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # All are significant (strongly)
+```
+
+Next: singular one-way ANOVAs (one ANOVA per GrazeTime, examining only Treatment with no averaging).
+
+There is no significance between Treatments for any GrazeTime.
+```{r}
+# Loop to examine each Treatment by GrazeTime - no averaging
+ggplot(data = mbn, aes(x = Treatment, y = mbn_mgg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+grz <- unique(mbn$GrazeTime)
+# save the model objects
+mods<- list()
+for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(mbn_mgg ~ Treatment, 
+                          data = filter(mbn, GrazeTime == grz[i]))))
+  
+}
+names(mods)<- grz
+lapply(mods, summary) # No significance
+```
+
+Singular one-way ANOVAS with the averaged data: Average the data by Plot and compare to the PRE Baseline.
+
+Again, there is no significance between Treatment at any GrazeTime
+```{r}
+## Same loop but relative to PRE baseline
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+grz <- unique(all$GrazeTime)
+# save the model objects
+mods<- list()
+for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(delta ~ Treatment, 
+                          data = filter(all, GrazeTime == grz[i]))))
+  
+}
+names(mods)<- grz
+lapply(mods, summary) # No significance
+```
+
+*Non-Purgeable Organic Carbon (NPOC)*
+
+NOTE: This is similar to total organic carbon but the procedure burns off inorganic carbon 
+
+Same procedure as above: first perform repeated-measures ANOVA on averaged NPOC data relative to the PRE baseline.
+
+The ANOVA shows significance but the post-hoc Bonferroni test does not.
+```{r}
+# ---- NPOC ----
+npoc <- toc[, -c(6:7, 9:17)]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(NPOC_t0Nmin_mgg ~ Plot, data = npoc[npoc$GrazeTime %in% "PRE",], mean),
+             aggregate(NPOC_t0Nmin_mgg ~ GrazeTime + Plot + Treatment, 
+                       data = npoc[!npoc$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$NPOC_t0Nmin_mgg.y - all$NPOC_t0Nmin_mgg.x
+all$NPOC_t0Nmin_mgg.x <- NULL
+all$NPOC_t0Nmin_mgg.y <- NULL
+
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+mod.npoc <- aov(all$delta ~ all$Treatment * all$GrazeTime + Error(all$delta / all$GrazeTime))
+summary(mod.npoc)
+
+
+# Bonferroni test - is the most conservative
+with(all, pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) # no significance
+with(all, pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # no significance
+```
+
+Next, compare singular one-way ANOVAs with all data (no averaging).
+
+The ANOVA shows a significance between Treatments in the 1WK GrazeTime but the Bonferroni test shows no significance.
+```{r}
+# Loop to examine each Treatment by GrazeTime - no averaging
+ggplot(data = npoc, aes(x = Treatment, y = NPOC_t0Nmin_mgg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+grz <- unique(npoc$GrazeTime)
+# save the model objects
+mods<- list()
+for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(NPOC_t0Nmin_mgg ~ Treatment, 
+                          data = filter(npoc, GrazeTime == grz[i]))))
+  
+}
+names(mods)<- grz
+lapply(mods, summary) # Significance: PRE
+
+# Individual post-hoc tests
+with(npoc, pairwise.t.test(NPOC_t0Nmin_mgg, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) # no significance
+```
+
+Finally, the singular one-way ANOVAs with averaged data relative to the PRE baseline.
+
+The ANOVAs show no significance between Treatments at any GrazeTime.
+```{r}
+## Same loop but relative to PRE baseline
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+grz <- unique(all$GrazeTime)
+# save the model objects
+mods<- list()
+for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(delta ~ Treatment, 
+                          data = filter(all, GrazeTime == grz[i]))))
+  
+}
+names(mods)<- grz
+lapply(mods, summary) # No significance
+```
+
+*Dissolved Organic Nitrogen - DON*
+
+First, the repeated-measures ANOVA with averaged data by Plot relative to the PRE baseline.
+
+The ANOVA shows GrazeTime is significant, and the post-hoc test shows significance between 24H and 4WK, and 1WK and 4WK
+```{r}
+don <- toc[, -c(6:8, 10:17)]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(DON_t0Nmin_mgg ~ Plot, data = don[don$GrazeTime %in% "PRE",], mean),
+             aggregate(DON_t0Nmin_mgg ~ GrazeTime + Plot + Treatment, 
+                       data = don[!don$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$DON_t0Nmin_mgg.y - all$DON_t0Nmin_mgg.x
+all$mbn_mgg.x <- NULL
+all$mbn_mgg.y <- NULL
+
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+mod.don <- aov(all$delta ~ all$Treatment * all$GrazeTime + Error(all$delta / all$GrazeTime))
+summary(mod.don) # significance between GrazeTimes
+
+
+# Bonferroni test - is the most conservative
+with(all, pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) # no significance
+with(all, pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # 1WK-4Wk and 24H-4Wk are significant
+```
+Next, the singular one-way ANOVAs for Treatment by each GrazeTime.
+
+The ANOVAs show no significance between Treatment at any GrazeTime
+```{r}
+# Loop to examine each Treatment by GrazeTime - no averaging
+ggplot(data = don, aes(x = Treatment, y = DON_t0Nmin_mgg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+grz <- unique(don$GrazeTime)
+# save the model objects
+mods<- list()
+for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(DON_t0Nmin_mgg ~ Treatment, 
+                          data = filter(don, GrazeTime == grz[i]))))
+  
+}
+names(mods)<- grz
+lapply(mods, summary) # No significance
+```
+Finally, the singular one-way ANOVAs for the averaged DON data relative to the PRE baseline.
+
+Again, the ANOVAs show no significance between Treatment at any GrazeTime
+```{r}
+## Same loop but relative to PRE baseline
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+grz <- unique(all$GrazeTime)
+# save the model objects
+mods<- list()
+for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(delta ~ Treatment, 
+                          data = filter(all, GrazeTime == grz[i]))))
+  
+}
+names(mods)<- grz
+lapply(mods, summary) # No significance
+```
+*Extracellular Enzymes*
+
+There are 10 substrates that are analyzed as separate procedures.
+
+First, the repeated-measures ANOVA of enzyme activity averaged by Plot, relative to the PRE baseline. 
+The ANOVAs show significance between GrazeTimes for CBH, NAG, PER1, PHOS - these will have their own individual post-hoc tests.
+```{r}
+enz.vert <- prepData(read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/enzymes_vertical.txt", sep = "\t", header = TRUE, stringsAsFactors = TRUE))
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(Enzyme_nm_g_hr ~ Plot + Substrate, data = enz.vert[enz.vert$GrazeTime %in% "PRE",], mean),
+             aggregate(Enzyme_nm_g_hr ~ GrazeTime + Plot + Treatment + Substrate, 
+                       data = enz.vert[!enz.vert$GrazeTime %in% "PRE",], mean), 
+             by = c("Plot", "Substrate"))
+all$delta <- all$Enzyme_nm_g_hr.y - all$Enzyme_nm_g_hr.x
+all$Enzyme_nm_g_hr.x <- NULL
+all$Enzyme_nm_g_hr.y <- NULL
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+
+# Loop to look at each substrate in the repeated-measures ANOVA format
+sub <- unique(enz.vert$Substrate)
+# save the model objects
+mods<- list()
+for(i in 1:length(sub)) {
+  mods<- c(mods, list(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), 
+                          data = filter(all, Substrate == sub[i]))))
+
+}
+names(mods)<- sub
+lapply(mods, summary)
+
+# CBH, NAG, PER1, PHOS: GrazeTime
+```
+
+Individual post-hoc tests for CBh, NAG, PER1, PHOS
+
+```{r}
+# CBH, NAG, PER1, PHOS: GrazeTime
+# Do individual post-hoc tests for the substrates that showed significance with GrazeTime
+
+## CBH
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "CBH",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("CBH")
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "CBH",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) #24H-1WK, 24H-4WK
+
+## NAG
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "NAG",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("NAG")
+
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "NAG",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # Still no significance
+
+## PER1
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "PER1",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("PER1")
+
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "PER1",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # Still no significance
+
+## PHOS
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "PHOS",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("PHOS")
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "PHOS",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # 24H-1WK, 1WK-4WK
+```
+
+Next, do singular one-way ANOVAs without averaging.
+The ANOVAs show no significance
+```{r}
+## Singular one-way ANOVAs without averaging
+
+# Loop to examine each Treatment by GrazeTime - no averaging
+
+sub <- unique(enz.vert$Substrate)
+grz <- unique(enz.vert$GrazeTime)
+# save the model objects
+mods<- list()
+for(j in 1:length(sub)){
+  for(i in 1:length(grz)) {
+  mods<- c(mods, list(aov(Enzyme_nm_g_hr ~ Treatment, 
+                          data = filter(enz.vert, GrazeTime == grz[i]))))
+  
+}}
+#names(mods)<- sub
+lapply(mods, summary)
+
+```
+
+Finally, do singular one-way ANOVAs averaged by Plot relative to the PRE baseline.
+
+The ANOVAs show no significance between Treatment at any GrazeTime
+```{r}
+## Examine averaged data relative to PRE baseline
+sub <- unique(all$Substrate)
+grz <- unique(all$GrazeTime)
+# save the model objects
+mods<- list()
+for(j in 1:length(sub)){
+  for(i in 1:length(grz)) {
+    mods<- c(mods, list(aov(delta ~ Treatment, 
+                          data = filter(all, GrazeTime == grz[i]))))
+  
+}}
+#names(mods)<- grz
+lapply(mods, summary) 
+```
+
+*Microbial Efficiency*
+Enzyme activity per unit microbial biomass
+
+Start with repeated-measures ANOVA with averaged data by Plot relative to PRE baseline.
+
+There is Treatment significance between AG, BG, BX, CBH, LAP, NAG - individual post-hoc tests below
+```{r}
+## Now examine microbial efficiency relative to the PRE Baseline
+dat <- merge(mbc, enz.vert, by = c("Plot", "GrazeTime", "Block", "Treatment", "Sample"))
+dat$efficiency <- dat$Enzyme_nm_g_hr / dat$mbc_mgg
+dat$efficiency[dat$efficiency %in% "Inf"] <- 0
+all <- merge(aggregate(efficiency ~ Plot + Substrate, data = dat[dat$GrazeTime %in% "PRE",], mean),
+             aggregate(efficiency ~ GrazeTime + Plot + Treatment + Substrate, 
+                       data = dat[!dat$GrazeTime %in% "PRE",], mean), 
+             by = c("Plot", "Substrate"))
+all$delta <- all$efficiency.y - all$efficiency.x
+all$efficiency.x <- NULL
+all$efficiency.y <- NULL
+
+# ANOVA loop
+sub <- unique(all$Substrate)
+# save the model objects
+mods<- list()
+for(i in 1:length(sub)) {
+  mods<- c(mods, list(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), 
+                          data = filter(all, Substrate == sub[i]))))
+  
+}
+names(mods)<- sub
+lapply(mods, summary)
+# Treatment significance: AG, BG, BX, CBH, LAP, NAG
+```
+Individual post-hoc tests for AG, BG, BX, CBH, LAP, NAG
+```{r}
+## AG
+# plot
+ggplot(data = all[all$Substrate %in% "AG",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)+
+  ggtitle("AG")
+
+# Bonferroni test - is the most conservative
+with(all[all$Substrate %in% "AG",], 
+     pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) #NO-HI
+
+## BG
+# plot
+ggplot(data = all[all$Substrate %in% "BG",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)+
+  ggtitle("BG")
+
+# Bonferroni test - is the most conservative
+with(all[all$Substrate %in% "BG",], 
+     pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) #NO-HI
+
+## BX
+# plot
+ggplot(data = all[all$Substrate %in% "BX",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("BX")
+
+# Bonferroni test - is the most conservative
+with(all[all$Substrate %in% "BX",], 
+     pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) #NO-HI
+
+## CBH
+# plot
+ggplot(data = all[all$Substrate %in% "CBH",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("CBH")
+
+# Bonferroni test - is the most conservative
+with(all[all$Substrate %in% "CBH",], 
+     pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) #NO-HI
+
+## LAP
+# plot
+ggplot(data = all[all$Substrate %in% "LAP",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)+
+  ggtitle("LAP")
+
+# Bonferroni test - is the most conservative
+with(all[all$Substrate %in% "LAP",], 
+     pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) #NO-HI
+
+## NAG
+# plot
+ggplot(data = all[all$Substrate %in% "NAG",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("NAG")
+
+# Bonferroni test - is the most conservative
+with(all[all$Substrate %in% "NAG",], 
+     pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) #No significance
+```
+
+
+
+
