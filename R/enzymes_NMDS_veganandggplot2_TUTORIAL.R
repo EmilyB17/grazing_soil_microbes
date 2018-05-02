@@ -1,16 +1,9 @@
-# Extracellular enzymes NMDS script
-# Creates ordination in vegan, then plots in ggplot
+#### Extracellular enzymes NMDS script
+#### Creates ordination in vegan, then plots in ggplot
+# Emily Bean, ebean@uwyo.edu
 
-# //// as tutorial, only run all commands (don't change anything)
-# to help your understanding, check the structure of variables in the console as you create them
-# example: 
-x <- 1
-str(x)
-# //// BEFORE MANIPULATING THIS SCRIPT IN R:
-# Save to your own directory
-# set your own working directory
 
-setwd()
+#setwd()
 
 # part of this tutorial comes from: https://oliviarata.wordpress.com/2014/04/17/ordinations-in-ggplot2/
 # part of this tutorial comes from Van Diepen UW lab
