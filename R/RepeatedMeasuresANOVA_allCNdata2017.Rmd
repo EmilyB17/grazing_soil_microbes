@@ -1,0 +1,742 @@
+---
+title: "Repeated Measures ANOVA - C, N, MBC data 2017"
+output: html_notebook
+---
+
+ Below are a series of repeated-measures ANOVA completed on the following data:
+* Microbial Biomass C
+* Microbial Biomass N
+* Microbial Biomass C:N Ratio
+* Non-purgeable Organic Carbon (NPOC)
+* Dissolved Organic Nitrogen (DON)
+* Mineral Nitrogen (NO3-N + NH4-N)
+* Extracellular Enzymes
+* Microbial Efficiency (enzyme activity per unit microbial biomass)
+
+Repeated-measures ANOVA are completed on three different datasets: 
+  - GrazeTimes compared to PRE baseline data (each plot average subtracted by that plot's PRE baseline average)
+  - Each Plot average (n = 12 per GrazeTime, 48 total)
+  - No averages (n = 60 per GrazeTime, 240 total)
+  
+All post-hoc tests are paired t test with a Bonferroni correction
+
+*Between-subjects variable: Treatment (each plot has a different treatment)*
+*Within-subjects variable: GrazeTime (each plot repeated four GrazeTimes)*
+
+```{r}
+# Reading in data
+require(ggplot2)
+require(tidyverse)
+require(dplyr)
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData.R")
+
+toc <- prepData(read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/allCNdata_2017.txt", sep = "\t", header = TRUE, stringsAsFactors = TRUE))
+```
+
+*Microbial Biomass Carbon (MBC)*
+
+1. GrazeTimes compared to PRE baseline
+
+The ANOVA shows no significance to Treatment, GrazeTime, or Treatment:GrazeTime interaction
+```{r}
+# ---- Microbial Biomass C ----
+mbc <- toc[, c("GrazeTime", "Treatment", "Plot", "Block", "Sample", "mbc_mgkg")]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(mbc_mgkg ~ Plot, data = mbc[mbc$GrazeTime %in% "PRE",], mean),
+             aggregate(mbc_mgkg ~ GrazeTime + Plot + Treatment, 
+                       data = mbc[!mbc$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$mbc_mgkg.y - all$mbc_mgkg.x
+all$mbc_mgkg.x <- NULL
+all$mbc_mgkg.y <- NULL
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(all$delta ~ all$Treatment * all$GrazeTime + Error(all$delta / all$GrazeTime)))
+# No significance
+```
+MBC
+
+2 - Each Plot average (n = 12 per GrazeTime, 48 total)
+
+Only significance is between 24H and 4Wk in GrazeTime
+```{r}
+
+avg <- aggregate(mbc_mgkg ~ Plot + Treatment + GrazeTime, data = mbc, mean)
+ggplot(data = avg, aes(x = Treatment, y = mbc_mgkg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(mbc_mgkg ~ Treatment * GrazeTime + Error(mbc_mgkg / GrazeTime), data = avg))
+# Significance with GrazeTime
+
+# post-hoc test
+with(avg, pairwise.t.test(mbc_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# significance between 24H-4WK
+```
+MBC
+
+3 - No averages (n = 60 per GrazeTime, 240 total)
+
+Significance between 24H and 1WK in GrazeTime, although ANOVA says significance between Treatment, post-hoc did not show any significance between any treatment
+```{r}
+# perform repeated-measures ANOVA
+summary(aov(mbc_mgkg ~ Treatment * GrazeTime + Error(mbc_mgkg / GrazeTime), data = mbc))
+# Significance with GrazeTime and Treatment
+
+# post-hoc test
+with(mbc, pairwise.t.test(mbc_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# significance between 24H-1WK
+with(mbc, pairwise.t.test(mbc_mgkg, Treatment, p.adjust.method = "bonferroni", paired = TRUE))
+# No significance
+```
+*Microbial Biomass Nitrogen (MBN)*
+
+1. GrazeTimes compared to PRE baseline
+
+All GrazeTimes are strongly significant, no significance with Treatment or Interaction
+```{r}
+# ---- Microbial Biomass N ----
+mbn <- toc[, c("GrazeTime", "Treatment", "Plot", "Block", "Sample", "mbn_mgkg")]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(mbn_mgkg ~ Plot, data = mbn[mbn$GrazeTime %in% "PRE",], mean),
+             aggregate(mbn_mgkg ~ GrazeTime + Plot + Treatment, 
+                       data = mbn[!mbn$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$mbn_mgkg.y - all$mbn_mgkg.x
+all$mbn_mgkg.x <- NULL
+all$mbn_mgkg.y <- NULL
+
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), data = all)) # GrazeTime is significant
+
+# post hoc test
+with(all, pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # All are significant (strongly)
+```
+
+MBN
+
+2 - Each Plot average (n = 12 per GrazeTime, 48 total)
+
+Only significance is between PRE-1WK, 24H-1WK, 24H-4WK, 1WK-4WK in GrazeTime
+```{r}
+
+avg <- aggregate(mbn_mgkg ~ Plot + Treatment + GrazeTime, data = mbn, mean)
+
+ggplot(data = avg, aes(x = Treatment, y = mbn_mgkg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(mbn_mgkg ~ Treatment * GrazeTime + Error(mbn_mgkg / GrazeTime), data = avg))
+# Significance with GrazeTime
+
+# post-hoc test
+with(avg, pairwise.t.test(mbn_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# significance between PRE-1WK, 24H-1WK, 24H-4WK, 1WK-4WK
+```
+
+MBN
+
+3 - No averages (n = 60 per GrazeTime, 240 total)
+
+Significance between 24H and 1WK in GrazeTime, although ANOVA says significance between Treatment, post-hoc did not show any significance between any treatment
+```{r}
+# perform repeated-measures ANOVA
+summary(aov(mbn_mgkg ~ Treatment * GrazeTime + Error(mbn_mgkg / GrazeTime), data = mbn))
+# Significance with GrazeTime 
+
+# post-hoc test
+with(mbn, pairwise.t.test(mbn_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# significance between PRE-1WK, 24H-1WK, 24H-4WK, 1Wk-4WK
+```
+
+*Microbial Biomass C:N Ratio*
+
+1. GrazeTimes compared to PRE baseline
+
+The ANOVA showed no significance
+```{r}
+# ---- Microbial Biomass C:N Ratio ----
+ratio <- toc$mbc_mgkg / toc$mbn_mgkg
+smb <- cbind(toc[,c("GrazeTime", "Treatment", "Block", "Plot", "Sample")], ratio)
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(ratio ~ Plot, data = smb[smb$GrazeTime %in% "PRE",], mean),
+             aggregate(ratio ~ GrazeTime + Plot + Treatment, 
+                       data = smb[!smb$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$ratio.y - all$ratio.x
+all$ratio.x <- NULL
+all$ratio.y <- NULL
+
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), data = all)) # No significance
+```
+
+SMB C:N Ratio
+
+2 - Each Plot average (n = 12 per GrazeTime, 48 total)
+
+The ANOVA showed significance with GrazeTime: PRE-1WK, 24H-1WK, 1WK-4WK
+```{r}
+
+avg <- aggregate(ratio ~ Plot + Treatment + GrazeTime, data = smb, mean)
+
+ggplot(data = avg, aes(x = Treatment, y = ratio, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(ratio ~ Treatment * GrazeTime + Error(ratio / GrazeTime), data = avg))
+# Significance with GrazeTime
+
+# post-hoc test
+with(avg, pairwise.t.test(ratio, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# Significance PRE-1WK, 24H-1WK, 1WK-4WK
+```
+SMB C:N Ratio
+
+3 - No averages (n = 60 per GrazeTime, 240 total)
+
+Significance between PRE-1WK, 24H-1WK, 1Wk-4WK in GrazeTime, although ANOVA says significance between Treatment, post-hoc did not show any significance between any treatment
+```{r}
+# perform repeated-measures ANOVA
+summary(aov(ratio ~ Treatment * GrazeTime + Error(ratio / GrazeTime), data = smb))
+# Significance with GrazeTime and Treatment 
+
+# post-hoc test
+with(smb, pairwise.t.test(ratio, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# significance between PRE-1WK, 24H-1WK, 1WK-4WK
+with(smb, pairwise.t.test(ratio, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) # no significance
+```
+
+*Non-purgeable OrganiC Carbon (NPOC)*
+
+NPOC is similar to total organic carbon, except the procedure burns off excess inorganic carbon, making it more accurate for soils with carbonates.
+
+1 -GrazeTimes compared to PRE baseline data (each plot average subtracted by that plot's PRE baseline average)
+
+The ANOVA showed only significance with GrazeTime, but the post hoc test showed no significance
+```{r}
+# ---- NPOC ----
+npoc <- toc[, c("GrazeTime", "Treatment", "Plot", "Block", "Sample", "NPOC_mgkg")]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(NPOC_mgkg ~ Plot, data = npoc[npoc$GrazeTime %in% "PRE",], mean),
+             aggregate(NPOC_mgkg ~ GrazeTime + Plot + Treatment, 
+                       data = npoc[!npoc$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$NPOC_mgkg.y - all$NPOC_mgkg.x
+all$NPOC_mgkg.x <- NULL
+all$NPOC_mgkg.y <- NULL
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), data = all))
+# Significance with GrazeTime
+
+# post-hoc test
+with(all, pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# no significance
+```
+NPOC
+
+2 - Each Plot average (n = 12 per GrazeTime, 48 total)
+
+There is a significance in GrazeTime between PRE-4WK
+```{r}
+
+avg <- aggregate(NPOC_mgkg ~ Plot + Treatment + GrazeTime, data = npoc, mean)
+ggplot(data = avg, aes(x = Treatment, y = NPOC_mgkg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(NPOC_mgkg ~ Treatment * GrazeTime + Error(NPOC_mgkg / GrazeTime), data = avg))
+# Significance with GrazeTime
+
+# post-hoc test
+with(avg, pairwise.t.test(NPOC_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# significance between PRE-4WK
+```
+NPOC
+
+3 - No averages (n = 60 per GrazeTime, 240 total)
+
+Significance in GrazeTime between PRE-4WK, 1Wk-4WK
+```{r}
+# perform repeated-measures ANOVA
+summary(aov(NPOC_mgkg ~ Treatment * GrazeTime + Error(NPOC_mgkg / GrazeTime), data = npoc))
+# Significance with GrazeTime 
+
+# post-hoc test
+with(npoc, pairwise.t.test(NPOC_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # significance between PRE-4WK, 1Wk-4WK
+
+```
+*Dissolved Organic Nitrogen (DON)*
+
+1 - GrazeTimes compared to PRE baseline data (each plot average subtracted by that plot's PRE baseline average)
+
+Only significance between GrazeTime, at 24H-4WK and 1WK-4WK
+```{r}
+# ---- DON ----
+don <- toc[, c("GrazeTime", "Treatment", "Plot", "Block", "Sample", "DON_mgkg")]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(DON_mgkg ~ Plot, data = don[don$GrazeTime %in% "PRE",], mean),
+             aggregate(DON_mgkg ~ GrazeTime + Plot + Treatment, 
+                       data = don[!don$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$DON_mgkg.y - all$DON_mgkg.x
+all$DON_mgkg.x <- NULL
+all$DON_mgkg.y <- NULL
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), data = all))
+# Significance with GrazeTime
+
+# post-hoc test
+with(all, pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# Significance between 24H-4WK, 1WK-4WK
+```
+DON
+
+2 - Each Plot average (n = 12 per GrazeTime, 48 total)
+
+No significance 
+```{r}
+
+avg <- aggregate(DON_mgkg ~ Plot + Treatment + GrazeTime, data = don, mean)
+ggplot(data = avg, aes(x = Treatment, y = DON_mgkg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(DON_mgkg ~ Treatment * GrazeTime + Error(DON_mgkg / GrazeTime), data = avg))
+# No significance
+```
+DON 
+
+3 - No averages (n = 60 per GrazeTime, 240 total)
+
+Only significance between GrazeTime at PRE-24H, PRE-1WK, PRE-4WK, 24H-4WK, 1WK-4WK
+```{r}
+# perform repeated-measures ANOVA
+summary(aov(DON_mgkg ~ Treatment * GrazeTime + Error(DON_mgkg / GrazeTime), data = don))
+# Significance with GrazeTime 
+
+# post-hoc test
+with(don, pairwise.t.test(DON_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# significance between PRE-24H, PRE-1WK, PRE-4WK, 24H-4WK, 1WK-4WK
+
+```
+
+*Mineral Nitrogen (NO3-N + NH4-N)*
+
+1 - GrazeTimes compared to PRE baseline data (each plot average subtracted by that plot's PRE baseline average)
+
+The ANOVA shows no significance between GrazeTime, Treatment, or interactions
+```{r}
+# ---- Mineral N ----
+min <- toc[, c("GrazeTime", "Treatment", "Plot", "Block", "Sample", "minN_mgkg")]
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(minN_mgkg ~ Plot, data = min[min$GrazeTime %in% "PRE",], mean),
+             aggregate(minN_mgkg ~ GrazeTime + Plot + Treatment, 
+                       data = min[!min$GrazeTime %in% "PRE",], mean), 
+             by = "Plot")
+all$delta <- all$minN_mgkg.y - all$minN_mgkg.x
+all$minN_mgkg.x <- NULL
+all$minN_mgkg.y <- NULL
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+# plot
+ggplot(data = all, aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), data = all))
+# No significance
+```
+
+Mineral N
+
+2 - Each Plot average (n = 12 per GrazeTime, 48 total)
+
+The ANOVA showed a significance between GrazeTime but post hoc test did not show significance
+```{r}
+
+avg <- aggregate(minN_mgkg ~ Plot + Treatment + GrazeTime, data = min, mean)
+ggplot(data = avg, aes(x = Treatment, y = minN_mgkg, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+summary(aov(minN_mgkg ~ Treatment * GrazeTime + Error(minN_mgkg / GrazeTime), data = avg))
+# Significance with GrazeTime
+
+# post-hoc test
+with(avg, pairwise.t.test(minN_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# No significance
+```
+Mineral N
+
+3 - No averages (n = 60 per GrazeTime, 240 total)
+
+The ANOVA showed significance between GrazeTime, but the post hoc test did not show significance
+```{r}
+# perform repeated-measures ANOVA
+summary(aov(minN_mgkg ~ Treatment * GrazeTime + Error(minN_mgkg / GrazeTime), data = min))
+# Significance with GrazeTime
+
+# post-hoc test
+with(min, pairwise.t.test(minN_mgkg, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE))
+# No significance
+```
+
+*Extracellular Enzymes*
+
+Unit is nm Enzyme activity per gram dry soil per hour
+
+There were 10 substrates measured, which are all treated as a separate analysis. Therefore, analyses show 10 separate ANOVAs for each of the three analyses. If the substrate shows significance in the for loop, it will have its own post hoc test below.
+
+1 - GrazeTimes compared to PRE baseline data (each plot average subtracted by that plot's PRE baseline average)
+
+Substrates that showed significance with GrazeTime were CBH, NAG, PER1, PHOS
+```{r}
+# ---- Enzymes ----
+
+enz.vert <- prepData(read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/enzymes_vertical.txt", sep = "\t", header = TRUE, stringsAsFactors = TRUE))
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(Enzyme_nm_g_hr ~ Plot + Substrate, data = enz.vert[enz.vert$GrazeTime %in% "PRE",], mean),
+             aggregate(Enzyme_nm_g_hr ~ GrazeTime + Plot + Treatment + Substrate, 
+                       data = enz.vert[!enz.vert$GrazeTime %in% "PRE",], mean), 
+             by = c("Plot", "Substrate"))
+all$delta <- all$Enzyme_nm_g_hr.y - all$Enzyme_nm_g_hr.x
+all$Enzyme_nm_g_hr.x <- NULL
+all$Enzyme_nm_g_hr.y <- NULL
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+
+# Loop to look at each substrate in the repeated-measures ANOVA format
+sub <- unique(enz.vert$Substrate)
+# save the model objects
+mods<- list()
+for(i in 1:length(sub)) {
+  mods<- c(mods, list(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), 
+                          data = filter(all, Substrate == sub[i]))))
+
+}
+names(mods)<- sub
+lapply(mods, summary)
+
+# CBH, NAG, PER1, PHOS: GrazeTime
+```
+1 - Individual post hoc tests for substrates that showed significance
+
+Results:
+* CBH: 24H-1WK, 24H-4WK
+* NAG: no significance
+* PER1: no significance
+* PHOS: 24H-1WK, 1WK-4WK
+```{r}
+# CBH, NAG, PER1, PHOS: GrazeTime
+# Do individual post-hoc tests for the substrates that showed significance with GrazeTime
+
+## CBH
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "CBH",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("CBH")
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "CBH",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) #24H-1WK, 24H-4WK
+
+## NAG
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "NAG",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("NAG")
+
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "NAG",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # Still no significance
+
+## PER1
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "PER1",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("PER1")
+
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "PER1",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # Still no significance
+
+## PHOS
+# plot
+ggplot(data = enz.vert[enz.vert$Substrate %in% "PHOS",], 
+       aes(x = Treatment, y = delta, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime) +
+  ggtitle("PHOS")
+
+# Bonferroni test - is the most conservative
+with(enz.vert[enz.vert$Substrate %in% "PHOS",], 
+     pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # 24H-1WK, 1WK-4WK
+```
+
+2 - Each Plot average (n = 12 per GrazeTime, 48 total)
+
+The ANOVA showed no significance between any unique combination of Subtrate & GrazeTime, between Treatments.
+
+```{r}
+
+
+avg <- aggregate(Enzyme_nm_g_hr ~ Plot + Treatment + GrazeTime + Substrate, 
+                 data = enz.vert, mean)
+ggplot(data = avg, aes(x = Treatment, y = Enzyme_nm_g_hr, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+sub <- unique(avg$Substrate)
+grz <- unique(avg$GrazeTime)
+# save the model objects
+mods<- list()
+nm <- character()
+for(j in 1:length(sub)){
+  for(i in 1:length(grz)) {
+    mods<- c(mods, list(aov(Enzyme_nm_g_hr ~ Treatment, 
+                          data = filter(avg, GrazeTime == grz[i] & Substrate == sub[j]))))
+    nm <- c(nm, paste(grz[i], sub[j], sep = "_"))
+}}
+names(mods)<- nm
+lapply(mods, summary) 
+# No significance
+```
+
+3 - No averages (n = 60 per GrazeTime, 240 total per substrate)
+
+The ANOVA showed no significance between any unique combination of Subtrate & GrazeTime, between Treatments.
+
+```{r}
+# perform repeated-measures ANOVA
+sub <- unique(enz.vert$Substrate)
+grz <- unique(enz.vert$GrazeTime)
+# save the model objects
+mods<- list()
+nm <- character()
+for(j in 1:length(sub)){
+  for(i in 1:length(grz)) {
+    mods<- c(mods, list(aov(Enzyme_nm_g_hr ~ Treatment, 
+                          data = filter(enz.vert, GrazeTime == grz[i] & Substrate == sub[j]))))
+    nm <- c(nm, paste(grz[i], sub[j], sep = "_"))
+}}
+names(mods)<- nm
+lapply(mods, summary) 
+# No significance
+```
+*Microbial Efficiency*
+
+Microbial efficiency is described as enzyme activity per unit microbial biomass. Similar to extracellular enzyme analyses, there will be 10 ANOVAs (one for each substrate) per analysis.
+
+1 - GrazeTimes compared to PRE baseline data (each plot average subtracted by that plot's PRE baseline average)
+
+CBH and NAG showed significance with Treatment, NAG showed significance with GrazeTime. Individual post hoc tests are below
+
+```{r}
+# ---- Microbial Efficiency ----
+# AKA: Enzyme activity per unit microbial biomass 
+# Enzyme_nm_g_hr / mbc_mgkg
+
+# Create efficiency (microbial efficiency)
+dat <- merge(mbc, enz.vert, by = c("Plot", "GrazeTime", "Block", "Treatment", "Sample"))
+dat$efficiency <- dat$Enzyme_nm_g_hr / dat$mbc_mgkg
+dat$efficiency[dat$efficiency %in% "Inf"] <- 0
+
+# Examine data relative to the PRE baseline
+all <- merge(aggregate(efficiency ~ Plot + Substrate, 
+                       data = dat[dat$GrazeTime %in% "PRE",], mean),
+             aggregate(efficiency ~ GrazeTime + Plot + Treatment + Substrate, 
+                       data = dat[!dat$GrazeTime %in% "PRE",], mean), 
+             by = c("Plot", "Substrate"))
+all$delta <- all$efficiency.y - all$efficiency.x
+all$efficiency.x <- NULL
+all$efficiency.y <- NULL
+
+# Now the data is averaged by Plot, and "delta" is the difference of the average of that plot from the average of the same plot at the PRE baseline
+
+
+# Loop to look at each substrate in the repeated-measures ANOVA format
+sub <- unique(all$Substrate)
+# save the model objects
+mods<- list()
+for(i in 1:length(sub)) {
+  mods<- c(mods, list(aov(delta ~ Treatment * GrazeTime + Error(delta / GrazeTime), 
+                          data = filter(all, Substrate == sub[i]))))
+
+}
+names(mods)<- sub
+lapply(mods, summary)
+# Significance: Treatment - CBH, NAG
+              # GrazeTime - NAG
+```
+
+Microbial efficiency
+1 - Individual post hoc tests
+
+NAG showed significance between HI and LO treatments, but NAG did not show any significance between GrazeTimes, and CBH had no significance between Treatments.
+```{r}
+# NAG Treatment
+with(all[all$Substrate %in% "NAG",], pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) # significance between HI and LO
+
+# NAG GrazeTime
+with(all[all$Substrate %in% "NAG",], pairwise.t.test(delta, GrazeTime, p.adjust.method = "bonferroni", paired = TRUE)) # No significance
+
+# CBH Treatment
+with(all[all$Substrate %in% "CBH",], pairwise.t.test(delta, Treatment, p.adjust.method = "bonferroni", paired = TRUE)) # no significance
+```
+Microbial efficiency 
+
+2 - Each Plot average (n = 12 per GrazeTime, 48 total)
+
+Only the NAG substrate at the PRE GrazeTime showed significance.
+```{r}
+
+avg <- aggregate(efficiency ~ Plot + Treatment + GrazeTime + Substrate, 
+                 data = dat, mean)
+ggplot(data = avg, aes(x = Treatment, y = efficiency, colour = Treatment)) +
+  geom_boxplot() +
+  facet_wrap(~ GrazeTime)
+
+# perform repeated-measures ANOVA
+sub <- unique(avg$Substrate)
+grz <- unique(avg$GrazeTime)
+# save the model objects
+mods<- list()
+nm <- character()
+for(j in 1:length(sub)){
+  for(i in 1:length(grz)) {
+    mods<- c(mods, list(aov(efficiency ~ Treatment, 
+                          data = filter(avg, GrazeTime == grz[i] & Substrate == sub[j]))))
+    nm <- c(nm, paste(grz[i], sub[j], sep = "_"))
+}}
+names(mods)<- nm
+lapply(mods, summary) 
+# Significance: PRE NAG
+```
+Microbial efficiency 
+
+2 - Individual post hoc tests
+
+NAG at the PRE GrazeTime showed no significance in the post hoc test
+```{r}
+# NAG at PRE GrazeTime
+with(avg[avg$Substrate %in% "NAG" & avg$GrazeTime %in% "PRE",], 
+     pairwise.t.test(efficiency, Treatment, p.adjust.method = "bonferroni", paired = TRUE))
+# no significance
+```
+Microbial efficiency 
+
+3 - No averages (n = 60 per GrazeTime, 240 total)
+
+The ANOVA showed significance between Treatments at 24H LAP, 24H BG, 24H BX
+
+```{r}
+# perform repeated-measures ANOVA
+sub <- unique(dat$Substrate)
+grz <- unique(dat$GrazeTime)
+# save the model objects
+mods<- list()
+nm <- character()
+for(j in 1:length(sub)){
+  for(i in 1:length(grz)) {
+    mods<- c(mods, list(aov(efficiency ~ Treatment, 
+                          data = filter(dat, GrazeTime == grz[i] & Substrate == sub[j]))))
+    nm <- c(nm, paste(grz[i], sub[j], sep = "_"))
+}}
+names(mods)<- nm
+lapply(mods, summary) 
+# Significance: 24H LAP, 24H BG, 24H BX
+```
+Microbial Efficiency
+
+3 - Individual post hoc tests
+
+LAP and BG at 24H did not show any significant differences; BX at 24H showed differences between HI and LO treatments
+```{r}
+# 24H LAP, 24H BG, 24H BX
+
+## 24H LAP
+with(dat[dat$Substrate %in% "LAP" & dat$GrazeTime %in% "PRE",], 
+     pairwise.t.test(efficiency, Treatment, p.adjust.method = "bonferroni", paired = TRUE))
+# No significance
+
+## 24H BG
+with(dat[dat$Substrate %in% "BG" & dat$GrazeTime %in% "PRE",], 
+     pairwise.t.test(efficiency, Treatment, p.adjust.method = "bonferroni", paired = TRUE))
+# No significance
+
+## 24H BX
+with(dat[dat$Substrate %in% "BX" & dat$GrazeTime %in% "PRE",], 
+     pairwise.t.test(efficiency, Treatment, p.adjust.method = "bonferroni", paired = TRUE))
+# Significance between HI and LO
+
+ggplot(data = dat[dat$Substrate %in% "BX" & dat$GrazeTime %in% "PRE",], 
+       aes(x = Treatment, y = efficiency, colour = Treatment)) +
+  geom_boxplot()
+
+```
+
