@@ -1,0 +1,256 @@
+---
+title: "2017 and 2018 Data Analysis - Rising Plate Pasture Meter"
+output: html_notebook
+---
+
+Author contact: Emily Bean, ebean@uwyo.edu
+
+2017 and 2018 data analysis of rising plate pasture meter data from Laramie Agricultural Experiment Station grazing trial.
+
+```{r}
+require(ggplot2)
+require(tidyverse)
+# get data
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData2018.R")
+rpm <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018rpm.txt", sep = "\t", header = TRUE))
+#trial <- read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018rpm_fieldtrial.txt", sep = "\t", header = TRUE)
+```
+
+**Using 2018 RPM data and 2018 clipped biomass data to create a linear regression**  
+This linear regression is recommended by RPM manufacturer JenQuip to "calibrate" the RPM to a specific pasture type. Not enough biomass clippings were taken during 2017 to reach an acceptable regression fit.  
+Biomass was clipped to the duff within a quadrat and dried at 45C for 24 hours. Biomass is shown in the dataframe as kg dry biomass per 1/2 acre plot.  
+The regression plots show that there are no statistical outliers to get rid of. Therefore, we can use the linear regression to get rpm-derived biomass from clipped biomass.  
+```{r}
+
+# Does a simple linear regression fit well?
+plot(rpm$biomass_kg_plot ~ rpm$reading_rpm)
+summary(lm(biomass_kg_plot ~ reading_rpm, data = rpm)) # r2 is 0.70
+plot(lm(biomass_kg_plot ~ reading_rpm, data = rpm)) # no statistical outliers based on Cook's distance
+
+# linear regression is y = 82.322x - 341.742 
+rpm$rpm_biomass <- (82.322 * rpm$reading_rpm) - 341.742
+plot(rpm$rpm_biomass) 
+```
+Is there a block effect? Based on an ANOVA comparing rpm-derived biomass to Block, yes. A Tukey test reveals the problem block to be Block 4, which is removed from the rest of the analyses. An ANOVA on the dataset subset to only blocks 1 through 3 is not significant. 
+```{r}
+## Is there a Block effect?
+plot(rpm_biomass ~ Block, data = rpm)
+summary(aov(rpm_biomass ~ Block, data = rpm)) # there is a block effect
+(TukeyHSD(aov(rpm_biomass ~ Block, data = rpm)))
+# differences between: 4-2 and 4-3
+# does getting rid of block 4 fix the block effect problem?
+noblock <- rpm[rpm$Block %in% 1:3,]
+summary(aov(rpm_biomass ~ Block, data = noblock)) 
+```
+Are there differences between treatments at each GrazeTime? The PRE time should be equal between treatments, while we expect the other times to show differences between the grazed and ungrazed treatments. An ANOVA confirms that there is no differences between treatments at the PRE timepoint, while there are differences between various treatments at all other time points.
+```{r}
+## Is there a difference between treatments at PRE, 24H, 1WK, and 4WK?
+summary(aov(rpm_biomass ~ Treatment, data = noblock[noblock$GrazeTime %in% "PRE",])) # none
+summary(aov(rpm_biomass ~ Treatment, data = noblock[noblock$GrazeTime %in% "24H",])) # strong sig.
+(TukeyHSD(aov(rpm_biomass ~ Treatment, data = noblock[noblock$GrazeTime %in% "24H",])))
+  # differences are between: LO-HI, NO-HI (none between NO-LO)
+summary(aov(rpm_biomass ~ Treatment, data = noblock[noblock$GrazeTime %in% "1WK",]))# strong sig.
+(TukeyHSD(aov(rpm_biomass ~ Treatment, data = noblock[noblock$GrazeTime %in% "1WK",])))  
+  # differences are between: NO-HI, NO-LO (none between LO-HI)
+summary(aov(rpm_biomass ~ Treatment, data = noblock[noblock$GrazeTime %in% "4WK",])) # strong sig.
+(TukeyHSD(aov(rpm_biomass ~ Treatment, data = noblock[noblock$GrazeTime %in% "4WK",])))
+  # differences are between: NO-HI, NO-LO (none between LO-HI)
+```
+What does vegetation recovery look like for each Treatment? The plots for each treatment show that biomass stays relatively steady throughout time for the no-grazing control plots, while the HI treatment shows a steady recovery in vegetation biomass following grazing. The LO treatment looks like it shows differences, but an ANOVA indicates only marginal significance.
+```{r}
+## What does each treatment look like across GrazeTimes?
+plot(rpm_biomass ~ GrazeTime, data = noblock[noblock$Treatment %in% "NO",], 
+     main = "NO Grazing at each GrazeTime")
+summary(aov(rpm_biomass ~ GrazeTime, data = noblock[noblock$Treatment %in% "NO",])) # none
+
+plot(rpm_biomass ~ GrazeTime, data = noblock[noblock$Treatment %in% "LO",],
+      main = "LO Grazing at each GrazeTime")
+summary(aov(rpm_biomass ~ GrazeTime, data = noblock[noblock$Treatment %in% "LO",])) # "marginal"
+
+plot(rpm_biomass ~ GrazeTime, data = noblock[noblock$Treatment %in% "HI",],
+      main = "HI Grazing at each GrazeTime")
+summary(aov(rpm_biomass ~ GrazeTime, data = noblock[noblock$Treatment %in% "HI",])) # strong sig.
+(TukeyHSD(aov(rpm_biomass ~ GrazeTime, data = noblock[noblock$Treatment %in% "HI",])))
+  # differences between: PRE-24H, PRE-1WK, PRE-4WK
+```
+Forage Utilization - how much available forage did the cattle consume?  
+Forage utilization is the percentage of forage that the cattle ate or trampled. For the HI treatment, it is PRE-24H/PRE and since the LO treatment grazed for a longer period of time, the forage utilization is PRE-1WK/PRE. Both calculations compare the forage measured 24 hours after the grazing treatment concluded, compared to the baseline data. The plot shows a significant difference between the forage utilization of the two treatments, which is not what we wanted to see. Ideally the treatments would have the same forage utilziation, indiciating the same severity of grazing at different intensities.
+```{r}
+## Forage Utlization (how much did the cattle eat of the available forage?)
+# HI: PRE - 24H / PRE (24H after HI grazing)
+for.hi <- data.frame(((noblock$rpm_biomass[noblock$Treatment %in% "HI" & noblock$GrazeTime %in% "PRE"] -
+             noblock$rpm_biomass[noblock$Treatment %in% "HI" & noblock$GrazeTime %in% "24H"]) /
+  noblock$rpm_biomass[noblock$Treatment %in% "HI" & noblock$GrazeTime %in% "PRE"]) * 100)
+for.hi$Treatment <- "HI"
+colnames(for.hi) <- c("forage_ut", "Treatment")
+# LO: PRE - 1WK / PRE (24H after LO grazing)
+for.lo <- data.frame(((noblock$rpm_biomass[noblock$Treatment %in% "LO" & noblock$GrazeTime %in% "PRE"] -
+              noblock$rpm_biomass[noblock$Treatment %in% "LO" & noblock$GrazeTime %in% "1WK"]) /
+  noblock$rpm_biomass[noblock$Treatment %in% "LO" & noblock$GrazeTime %in% "PRE"]) * 100)
+for.lo$Treatment <- "LO"
+colnames(for.lo) <- c("forage_ut", "Treatment")
+# combine into one dataframe for comparisons
+for.ut <- rbind(for.hi, for.lo)
+
+ggplot(data = for.ut, mapping = aes(x = Treatment, y = forage_ut, color = Treatment)) +
+  geom_boxplot() +
+  ggtitle("Forage Utilization (% Forage Eaten) in 2018 Grazing Trial") +
+  labs(y = "% forage utilization", x = "Treatment")
+
+```
+Vegetation Recovery - This analysis measures how much the biomass changed per day of recovery following grazing. HI Grazing had 28 days of recovery while LO had 22 days of recovery, and the NO grazing control had 35 days which was all days of the grazing trial from PRE to 4WK. The plot shows no significant differences in recovery between treatments. 
+
+```{r}
+## Vegetation Recovery Per Day (how much the forage grew back based on days after grazing to final sampling)
+# HI: 28 recovery days
+# LO: 22 recovery days
+# NO: 35 recovery days (all days of the grazing trial from PRE to 4WK)
+
+# calculate vegetation recovery
+hi.rec <- data.frame((noblock$rpm_biomass[noblock$Treatment %in% "HI" & noblock$GrazeTime %in% "4WK"] -
+             noblock$rpm_biomass[noblock$Treatment %in% "HI" & noblock$GrazeTime %in% "24H"]) / 28)
+colnames(hi.rec) <- "veg_rec"
+hi.rec$Treatment <- "HI"
+lo.rec <- data.frame((noblock$rpm_biomass[noblock$Treatment %in% "LO" & noblock$GrazeTime %in% "4WK"] -
+             noblock$rpm_biomass[noblock$Treatment %in% "LO" & noblock$GrazeTime %in% "1WK"]) / 22)
+colnames(lo.rec) <- "veg_rec"
+lo.rec$Treatment <- "LO"
+no.rec <- data.frame((noblock$rpm_biomass[noblock$Treatment %in% "NO" & noblock$GrazeTime %in% "4WK"] -
+             noblock$rpm_biomass[noblock$Treatment %in% "NO" & noblock$GrazeTime %in% "PRE"]) / 35)
+colnames(no.rec) <- "veg_rec"
+no.rec$Treatment <- "NO"
+# create data frame
+veg <- rbind(hi.rec, lo.rec, no.rec)
+veg$Treatment <- as.factor(veg$Treatment)
+
+ggplot(data = veg,  mapping = aes(x = Treatment, y = veg_rec, color = Treatment)) +
+  geom_boxplot() +
+  ggtitle("Vegetation growth after grazing per day 2018") +
+  labs(x = "Treatment", y = "Vegetation recovery per day")
+```
+
+**2017 RPM Data**  
+The 2018 regression fit the data much better than the 2017 regression based on a change in methodology for clipping biomass, so we are using the 2018 regression on the 2017 RPM data. There is no block effect for this year's data.
+
+```{r}
+rpm2017 <- prepData2018(read.table(file = "https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/rpm_Plot48.txt", sep = "\t", header = TRUE))
+rpm2017 <- rpm2017[,c(1:4,8)]
+
+# use 2018 regression to fit biomass to the rpm reading
+rpm2017$rpm_biomass <- (82.322 * rpm2017$Reading) - 341.742
+
+# Is there a block effect?
+summary(aov(rpm_biomass ~ Block, data = rpm2017))
+```
+What does vegetation recovery look like across Treatments? The 2017 data displays the same trends as the 2018 data in the plots, but the ANOVAs indicate that while the LO treatment has significance across time, the HI treatment does not. This is in contrast to the 2018 data.
+```{r}
+## What does each treatment look like across GrazeTimes?
+plot(rpm_biomass ~ GrazeTime, data = rpm2017[rpm2017$Treatment %in% "NO",], 
+     main = "NO Grazing at each GrazeTime")
+summary(aov(rpm_biomass ~ GrazeTime, data = rpm2017[rpm2017$Treatment %in% "NO",])) # none
+
+plot(rpm_biomass ~ GrazeTime, data = rpm2017[rpm2017$Treatment %in% "LO",],
+      main = "LO Grazing at each GrazeTime")
+summary(aov(rpm_biomass ~ GrazeTime, data = rpm2017[rpm2017$Treatment %in% "LO",])) # significant
+
+plot(rpm_biomass ~ GrazeTime, data = rpm2017[rpm2017$Treatment %in% "HI",],
+      main = "HI Grazing at each GrazeTime")
+summary(aov(rpm_biomass ~ GrazeTime, data = rpm2017[rpm2017$Treatment %in% "HI",])) # none
+
+```
+Forage Utilization - this is the same concept and analysis as used for the 2018 data. Interestingly, 2017 and 2018 display opposite trends, where in 2017 the HI treatment has much lower forage utilization than the LO treatment.
+
+```{r}
+## Forage Utlization (how much did the cattle eat of the available forage?)
+# HI: PRE - 24H / PRE (24H after HI grazing)
+for.hi <- data.frame(((rpm2017$rpm_biomass[rpm2017$Treatment %in% "HI" & rpm2017$GrazeTime %in% "PRE"] -
+                         rpm2017$rpm_biomass[rpm2017$Treatment %in% "HI" & rpm2017$GrazeTime %in% "24H"]) /
+                        rpm2017$rpm_biomass[rpm2017$Treatment %in% "HI" & rpm2017$GrazeTime %in% "PRE"]) * 100)
+for.hi$Treatment <- "HI"
+colnames(for.hi) <- c("forage_ut", "Treatment")
+# LO: PRE - 1WK / PRE (24H after LO grazing)
+for.lo <- data.frame(((rpm2017$rpm_biomass[rpm2017$Treatment %in% "LO" & rpm2017$GrazeTime %in% "PRE"] -
+                         rpm2017$rpm_biomass[rpm2017$Treatment %in% "LO" & rpm2017$GrazeTime %in% "1WK"]) /
+                        rpm2017$rpm_biomass[rpm2017$Treatment %in% "LO" & rpm2017$GrazeTime %in% "PRE"]) * 100)
+for.lo$Treatment <- "LO"
+colnames(for.lo) <- c("forage_ut", "Treatment")
+# combine into one dataframe for comparisons
+for.ut.old <- rbind(for.hi, for.lo)
+
+ggplot(data = for.ut.old, mapping = aes(x = Treatment, y = forage_ut, color = Treatment)) +
+  geom_boxplot() +
+  ggtitle("Forage Utilization (% Forage Eaten) in 2017 Grazing Trial") +
+  labs(y = "% forage utilization", x = "Treatment")
+# similar trend to 2018 data
+```
+
+Vegetation Recovery - This is calculated based on the 2017 days of recovery, which is similar to the 2018 data and has some minor differences based on timing of the grazing trial. In contrast to the 2018 data, the 2017 data shows that there is a difference in vegetation recovery between HI and LO/NO. The HI treatment showed a significantly higher vegetation recovery than the LO and NO treatments did.  
+
+```{r}
+## Vegetation Recovery
+# HI: 22 days recovery
+# LO: 20 days recovery
+# NO: 35 days recovery
+# calculate vegetation recovery
+hi.rec <- data.frame((rpm2017$rpm_biomass[rpm2017$Treatment %in% "HI" & rpm2017$GrazeTime %in% "4WK"] -
+                        rpm2017$rpm_biomass[rpm2017$Treatment %in% "HI" & rpm2017$GrazeTime %in% "24H"]) / 22)
+colnames(hi.rec) <- "veg_rec"
+hi.rec$Treatment <- "HI"
+lo.rec <- data.frame((rpm2017$rpm_biomass[rpm2017$Treatment %in% "LO" & rpm2017$GrazeTime %in% "4WK"] -
+                        rpm2017$rpm_biomass[rpm2017$Treatment %in% "LO" & rpm2017$GrazeTime %in% "1WK"]) / 20)
+colnames(lo.rec) <- "veg_rec"
+lo.rec$Treatment <- "LO"
+no.rec <- data.frame((rpm2017$rpm_biomass[rpm2017$Treatment %in% "NO" & rpm2017$GrazeTime %in% "4WK"] -
+                        rpm2017$rpm_biomass[rpm2017$Treatment %in% "NO" & rpm2017$GrazeTime %in% "PRE"]) / 35)
+colnames(no.rec) <- "veg_rec"
+no.rec$Treatment <- "NO"
+# create data frame
+veg <- rbind(hi.rec, lo.rec, no.rec)
+veg$Treatment <- as.factor(veg$Treatment)
+
+ggplot(data = veg,  mapping = aes(x = Treatment, y = veg_rec, color = Treatment)) +
+  geom_boxplot() +
+  ggtitle("2017 Vegetation growth after grazing per day") +
+  labs(x = "Treatment", y = "Vegetation recovery per day")
+
+```
+**Combining 2018 and 2017 data**
+To increase statistical power, we can look at the trends of the overall project, combining 2017 and 2018 data into one dataframe. In two grazing trials combined, what results do we see?
+```{r}
+# combine the data
+rpm$reading_rpm <- NULL
+rpm$biomass_kg_plot <- NULL
+rpm2017$Reading <- NULL
+all <- rbind(rpm, rpm2017)
+
+# Is there a Block effect?
+summary(aov(rpm_biomass ~ Block, data = all[all$GrazeTime %in% "PRE",])) # no block effect
+```
+
+What does each Treatment look like across GrazeTimes? ANOVAs show there is no difference between Treatments at the PRE GrazeTime, while there are significant differences between LO-HI and NO-HI at the 24H time point (this indicates HI grazing had occurred already, while LO grazing was just getting started) and differences between NO-HI and NO-LO at 1WK. The 1WK timepoint is when all grazing was finished and was 24 hours after LO grazing had finished. At 4WK, there are differences between NO-HI and NO-LO, not between LO-HI. 
+```{r}
+# What do the Treatments look like by GrazeTime?
+summary(aov(rpm_biomass ~ Treatment, data = all[all$GrazeTime %in% "PRE",])) # none
+summary(aov(rpm_biomass ~ Treatment, data = all[all$GrazeTime %in% "24H",])) # significant
+(TukeyHSD(aov(rpm_biomass ~ Treatment, data = all[all$GrazeTime %in% "24H",])))
+  # differences between: LO-HI, NO-HI
+summary(aov(rpm_biomass ~ Treatment, data = all[all$GrazeTime %in% "1WK",])) # significant
+(TukeyHSD(aov(rpm_biomass ~ Treatment, data = all[all$GrazeTime %in% "1WK",])))
+  # differences between: NO-HI, NO-LO---- not between LO-HI like there was at 24H
+summary(aov(rpm_biomass ~ Treatment, data = all[all$GrazeTime %in% "4WK",])) # significant
+(TukeyHSD(aov(rpm_biomass ~ Treatment, data = all[all$GrazeTime %in% "4WK",])))
+  # differences between: NO-HI, NO-LO -- not between LO-HI
+
+
+
+
+
+```
+A plot describes this data more intuitively. You can clearly see that at the 24H point, HI grazing had just finished and had much lower biomass. At 1WK, HI and LO are at similar levels, while LO still has higher biomass (because it wasn't grazed). At 4WK there is a similar trend.
+```{r}
+ggplot(data = all, mapping = aes(x = Treatment, y = rpm_biomass, color = Treatment)) +
+  geom_boxplot() +
+  facet_wrap( ~ GrazeTime) + 
+  ggtitle("2017 & 2018 data - RPM Biomass per Plot")
+```
+
