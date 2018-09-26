@@ -1,0 +1,17 @@
+---
+title: "2018 Data Analysis - ANOVAs"
+author: "Emily Bean"
+date: "September 25, 2018"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+Testing publishing the HTML to GitHub for full data analysis document
+
+```{r}
+# test code
+plot(cars)
+```
+
