@@ -1,5 +1,5 @@
 ---
-title: "2018 Data Analysis - ANOVAs"
+title: "2018 Data Analysis - Univariate"
 author: "Emily Bean"
 date: "September 25, 2018"
 output:
@@ -8,10 +8,1817 @@ output:
     highlight: github
 ---
 
-Testing publishing the HTML to GitHub for full data analysis document
+### Overview  
+##### Author: Emily Bean  
+##### Author contact: ebean@uwyo.edu  
+
+```{r, echo = FALSE, include = FALSE}
+## All packages required & sourced data
+require(ggplot2)
+require(dplyr)
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData2018.R")
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData.R")
+
+## Read in data
+cn <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018CN_data_updated10_18.txt", header = TRUE))
+
+enz <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018enzymes_vertical.txt", header = TRUE))
+
+veg <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018rpm.txt", header = TRUE))
+
+cn17 <- prepData(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017CN_data_updated10_18.txt", sep = "\t", header = TRUE))
+
+mbc17 <- cn17[complete.cases(cn17),] # removes rows with NA values for MBC & MBN
+
+grav17 <- prepData(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017Gravimetric_moisture.txt", sep = "\t", header = TRUE))
+
+enz17 <- prepData(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017enzymes_vertical.txt", sep = "\t", header = TRUE))
+
+ph17 <- prepData(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017pH.txt", sep = "\t", header = TRUE))
+
+rpm17 <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/rpm_Plot48.txt", sep = "\t", header = TRUE))
+rpm17$biomass_kg_plot <- (82.322 * rpm17$Reading) - 341.742
+
+# create microbial efficiency calculation
+eff17 <- merge(mbc17, enz17, by = c("Plot", "Block", "Treatment", "GrazeTime", "Sample"))
+eff17$efficiency <- eff17$Enzyme_nm_g_hr / eff17$MBC_mgkgdrysoil
+eff17$efficiency[eff17$efficiency %in% "Inf"] <- 0
+eff17$efficiency[eff17$efficiency %in% "NaN"] <- 0
+#eff17$efficiency[eff17$efficiency < 0] <- 0
+
+## Forage Utlization (how much did the cattle eat of the available forage?)
+# HI: PRE - 24H / PRE (24H after HI grazing)
+for.hi <- data.frame(((veg$biomass_kg_plot[veg$Treatment %in% "HI" & veg$GrazeTime %in% "PRE"] -
+                         veg$biomass_kg_plot[veg$Treatment %in% "HI" & veg$GrazeTime %in% "24H"]) /
+                        veg$biomass_kg_plot[veg$Treatment %in% "HI" & veg$GrazeTime %in% "PRE"]) * 100)
+for.hi$Treatment <- "HI"
+colnames(for.hi) <- c("forage_ut", "Treatment")
+# LO: PRE - 1WK / PRE (24H after LO grazing)
+for.lo <- data.frame(((veg$biomass_kg_plot[veg$Treatment %in% "LO" & veg$GrazeTime %in% "PRE"] -
+                         veg$biomass_kg_plot[veg$Treatment %in% "LO" & veg$GrazeTime %in% "1WK"]) /
+                        veg$biomass_kg_plot[veg$Treatment %in% "LO" & veg$GrazeTime %in% "PRE"]) * 100)
+for.lo$Treatment <- "LO"
+colnames(for.lo) <- c("forage_ut", "Treatment")
+# combine into one dataframe for comparisons
+for.ut18 <- rbind(for.hi, for.lo)
+
+## 2017
+## Forage Utlization (how much did the cattle eat of the available forage?)
+# HI: PRE - 24H / PRE (24H after HI grazing)
+for.hi <- data.frame(((rpm17$biomass_kg_plot[rpm17$Treatment %in% "HI" & rpm17$GrazeTime %in% "PRE"] -
+                         rpm17$biomass_kg_plot[rpm17$Treatment %in% "HI" & rpm17$GrazeTime %in% "24H"]) /
+                        rpm17$biomass_kg_plot[rpm17$Treatment %in% "HI" & rpm17$GrazeTime %in% "PRE"]) * 100)
+for.hi$Treatment <- "HI"
+colnames(for.hi) <- c("forage_ut", "Treatment")
+# LO: PRE - 1WK / PRE (24H after LO grazing)
+for.lo <- data.frame(((rpm17$biomass_kg_plot[rpm17$Treatment %in% "LO" & rpm17$GrazeTime %in% "PRE"] -
+                         rpm17$biomass_kg_plot[rpm17$Treatment %in% "LO" & rpm17$GrazeTime %in% "1WK"]) /
+                        rpm17$biomass_kg_plot[rpm17$Treatment %in% "LO" & rpm17$GrazeTime %in% "PRE"]) * 100)
+for.lo$Treatment <- "LO"
+colnames(for.lo) <- c("forage_ut", "Treatment")
+# combine into one dataframe for comparisons
+for.ut17 <- rbind(for.hi, for.lo)
+
+## 2018
+## Vegetation Recovery Per Day (how much the forage grew back based on days after grazing to final sampling)
+# HI: 28 recovery days
+# LO: 22 recovery days
+# NO: 35 recovery days (all days of the grazing trial from PRE to 4WK)
+
+# calculate vegetation recovery
+hi.rec <- data.frame((veg$biomass_kg_plot[veg$Treatment %in% "HI" & veg$GrazeTime %in% "4WK"] -
+                        veg$biomass_kg_plot[veg$Treatment %in% "HI" & veg$GrazeTime %in% "24H"]) / 28)
+colnames(hi.rec) <- "veg_rec"
+hi.rec$Treatment <- "HI"
+lo.rec <- data.frame((veg$biomass_kg_plot[veg$Treatment %in% "LO" & veg$GrazeTime %in% "4WK"] -
+                        veg$biomass_kg_plot[veg$Treatment %in% "LO" & veg$GrazeTime %in% "1WK"]) / 22)
+colnames(lo.rec) <- "veg_rec"
+lo.rec$Treatment <- "LO"
+no.rec <- data.frame((veg$biomass_kg_plot[veg$Treatment %in% "NO" & veg$GrazeTime %in% "4WK"] -
+                        veg$biomass_kg_plot[veg$Treatment %in% "NO" & veg$GrazeTime %in% "PRE"]) / 35)
+colnames(no.rec) <- "veg_rec"
+no.rec$Treatment <- "NO"
+# create data frame
+veg.rec18 <- rbind(hi.rec, lo.rec, no.rec)
+veg.rec18$Treatment <- as.factor(veg.rec18$Treatment)
+
+## 2017
+## Vegetation Recovery
+# HI: 22 days recovery
+# LO: 20 days recovery
+# NO: 35 days recovery
+# calculate vegetation recovery
+hi.rec <- data.frame((rpm17$biomass_kg_plot[rpm17$Treatment %in% "HI" & rpm17$GrazeTime %in% "4WK"] -
+                        rpm17$biomass_kg_plot[rpm17$Treatment %in% "HI" & rpm17$GrazeTime %in% "24H"]) / 22)
+colnames(hi.rec) <- "veg_rec"
+hi.rec$Treatment <- "HI"
+lo.rec <- data.frame((rpm17$biomass_kg_plot[rpm17$Treatment %in% "LO" & rpm17$GrazeTime %in% "4WK"] -
+                        rpm17$biomass_kg_plot[rpm17$Treatment %in% "LO" & rpm17$GrazeTime %in% "1WK"]) / 20)
+colnames(lo.rec) <- "veg_rec"
+lo.rec$Treatment <- "LO"
+no.rec <- data.frame((rpm17$biomass_kg_plot[rpm17$Treatment %in% "NO" & rpm17$GrazeTime %in% "4WK"] -
+                        rpm17$biomass_kg_plot[rpm17$Treatment %in% "NO" & rpm17$GrazeTime %in% "PRE"]) / 35)
+colnames(no.rec) <- "veg_rec"
+no.rec$Treatment <- "NO"
+# create data frame
+veg.rec17 <- rbind(hi.rec, lo.rec, no.rec)
+veg.rec17$Treatment <- as.factor(veg.rec17$Treatment)
+
+```
+
+The purpose of this document is to hold the statistical analyses and write-ups with explanations and results in one place. Finalized code will be as concise as possible.  
+
+### Statistical Design: Univariate Analyses  
+
+Univariate analyses will be organized by subject, starting with 2018 data, then 2017 data (including bulk density, microbial biomass C, microbial efficiency where there is only data for 2017), then 2018 and 2017 data combined.  
+
+*Steps for each analysis*  
+1. Use graphical exploratory data analysis (Gotelli and Ellison 2013). Plot the data to look for statistical outliers: use a boxplot where whiskers extend to 1.58% of the inter-quartile range.  
+2. Check for influential data points with influence.measures() function. Potential influential measures violate the assumptions of linear regression.
+3. Fit a linear regression model and test the assumptions of (1) homogeneity, (2) normality, and (3) independence. Following the methods of XXX, the statistical model validations will be done visually by inspecting: a residuals versus fitted values plot (checks homogeneity), a QQ plot (checks normality), and a residuals versus each explanatory variable (checks independence). 
+  
+### 2018 Data
+#### Gravimetric Moisture  
+
+Gravimetric moisture was measured by drying and weighing the soil at 105C for 24 hours. The boxplot does not indicate any statistical outliers. There are appear to be two data points that are potentially influential. The plots that validate the assumptions of linear regression clearly display that almost all assumptions are violated: the residuals vs. fitted plot shows a lopsided spread of residuals, the QQ-plot shows non-normality, and there is a heteroscedastic spread of residuals for the explanatory variable GrazeTime. Clearly, linear regression is not the way to go for this variable.
 
 ```{r}
-# test code
-plot(cars)
+# step 1: look for outliers with a boxplot
+ggplot(data = cn, aes(x = GrazeTime, y = grav_mois, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Gravimetric Moisture 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Gravimetric moisture %")
+
+# step 2: check for influential data points
+summary(influence.measures(lm(grav_mois ~ Treatment * GrazeTime, data = cn)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(grav_mois ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
+E <- resid(lm(grav_mois ~ Treatment * GrazeTime, data = cn))
+qqnorm(cn$grav_mois)
+qqline(cn$grav_mois)
+plot(cn$GrazeTime, resid(lm(grav_mois ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(grav_mois ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+```
+
+
+#### Dissolved Organic Carbon (non-purgeable organic carbon)  
+
+Non-purgeable organic carbon (NPOC) is analyzed in the same way as dissolved organic carbon, except the carbonates are burnt off before analysis. This is the preferred method for soils that have a high pH and large amounts of inorganic carbon. Briefly, a 10g subsample of soil was extracted in 50mL 0.5M K~2~SO~4~ and filtered throuh Q50 Whatman filters. The extracts were analyzed for NPOC and DON via combustion catalytic oxidation/NDIR method (Shimadzu TOC-VCPH with TNM-1, Shimadzu Corporation).
+The boxplot shows two outliers, both in the NO treatment but at different time points. There is one influential measure, and the diagnostic plots clearly show a violation of homogeneity and normality.
+After a log transformation, the spread of residuals looks more uniform and the QQ-plot looks more normal, although not perfect. The spread of residuals for each explanatory variable is even. Therefore, a log transformation is suitable for this variable to meet the assumptions of a linear regression.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn, aes(x = GrazeTime, y = NPOC_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("NPOC 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NPOC")
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
+E <- resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn))
+qqnorm(cn$NPOC_mgkgdrysoil)
+qqline(cn$NPOC_mgkgdrysoil)
+plot(cn$GrazeTime, resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+```{r}
+# Log transformation
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(log10(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
+E <- resid(lm(log10(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn))
+qqnorm(log10(cn$NPOC_mgkgdrysoil))
+qqline(log10(cn$NPOC_mgkgdrysoil))
+plot(cn$GrazeTime, resid(lm(log10(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(log10(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### Dissolved Organic Nitrogen
+
+Total organic N was analyzed via combustion catalytic oxidation/NDIR method (see NPOC above). DON was calculated by subtracting mineral N from total organic N. The boxplot shows two outliers, while there are 4 influ
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn, aes(x = GrazeTime, y = DON_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("DON 2018 Outliers") +
+  labs(x = "GrazeTime", y = "DON mg/kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
+qqnorm(cn$DON_mgkgdrysoil)
+qqline(cn$DON_mgkgdrysoil)
+plot(cn$GrazeTime, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+
+#### Nitrate-N
+
+Nitrate-N was analyzed by extraction with 0.5M K~2~SO~4~ (Doane and Horwatch, 2003). Initial diagnostic plots indicate several problems. There are multiple outliers, but the outliers are spread through the GrazeTime, indicating that they are likely true outliers and not laboratory errors. There are multiple influential observations, and the linear regression plots show that the spread of residuals is uneven and the data is not normal. Log transformation does not improve the data in this case.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn, aes(x = GrazeTime, y = NO3_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Nitate-N 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Nitrate mg/kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
+qqnorm(cn$NO3_mgkgdrysoil)
+qqline(cn$NO3_mgkgdrysoil)
+plot(cn$GrazeTime, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+#### Ammonium-N
+
+The boxplot shows one extreme outlier. The analysis was repeated and the outlier remained extreme, so it is likely not a lab mistake. Therefore, this analysis will be performed with and without the outlier, to explore its true influence. After the outlier is removed, the data fits a linear regression model much better. However, removing this datapoint could be ignorant and problematic, as it could represent a true soil condition (for example, increased labile N from cattle urine). It could also represent an abnormality in spatial heterogeneity (for example, a sample from a patch of soil that was recently urinated on by a cow). Unfortunately, without knowing for sure I am hesitant to just get rid of the point.
+
+```{r}
+## WITH THE OUTLIER
+# step 1: look for outliers with a boxplot
+ggplot(data = cn, aes(x = GrazeTime, y = NH4_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Ammonium-N 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Ammonium mg/kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
+qqnorm(cn$NH4_mgkgdrysoil)
+qqline(cn$NH4_mgkgdrysoil)
+plot(cn$GrazeTime, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+
+
+
+
+
+```{r}
+## WITHOUT THE OUTLIER
+# step 1: look for outliers with a boxplot
+ggplot(data = cn[-34,], aes(x = GrazeTime, y = NH4_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Ammonium-N 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Ammonium mg/kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,]), add.smooth = FALSE, which = 1)
+qqnorm(cn[-34,]$NH4_mgkgdrysoil)
+qqline(cn[-34,]$NH4_mgkgdrysoil)
+plot(cn[-34,]$GrazeTime, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn[-34,]$Treatment, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+#### Mineral-N
+
+Mineral Nitrogen is the addition of nitrate-N and ammonium-N, and represents the pool of the most plant-available N in the soil. This analysis will also be done with and without the outlier from the Ammonium-N analysis. Obviously, the data fits the linear regression model better without the outlier, and a log transformation makes a slight improvement in normality, as evidenced by the QQplot.
+
+```{r}
+## WITH THE OUTLIER
+# step 1: look for outliers with a boxplot
+ggplot(data = cn, aes(x = GrazeTime, y = mineralN_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Mineral-N 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Mineral N mg/kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
+qqnorm(cn$mineralN_mgkgdrysoil)
+qqline(cn$mineralN_mgkgdrysoil)
+plot(cn$GrazeTime, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+```{r}
+## WITHOUT THE OUTLIER
+# step 1: look for outliers with a boxplot
+ggplot(data = cn[-34,], aes(x = GrazeTime, y = mineralN_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Mineral-N 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Mineral N mg/kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,]), add.smooth = FALSE, which = 1)
+qqnorm(cn[-34,]$mineralN_mgkgdrysoil)
+qqline(cn[-34,]$mineralN_mgkgdrysoil)
+plot(cn[-34,]$GrazeTime, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn[-34,]$Treatment, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+```{r}
+## LOG TRANSFORMED & WITHOUT THE OUTLIER
+# step 1: look for outliers with a boxplot
+ggplot(data = cn[-34,], aes(x = GrazeTime, y = mineralN_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Mineral-N 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Mineral N mg/kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(log1p(mineralN_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn[-34,]), add.smooth = FALSE, which = 1)
+qqnorm(log1p(cn[-34,]$mineralN_mgkgdrysoil))
+qqline(log1p(cn[-34,]$mineralN_mgkgdrysoil))
+plot(cn[-34,]$GrazeTime, resid(lm(log1p(mineralN_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn[-34,]$Treatment, resid(lm(log1p(mineralN_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### Extracellular enzyme assays  
+
+Extracellular enzymes are secreted by soil microbes to degrade organic matter. This critical part of the soil nutrient cycle is commonly analyzed as a proxy to soil microbial activity, and can also be used to speculate at nutrient availability, as extracellular enzymes are secreted based on cellular economics. Enzyme assays are either fluorometric (hydrolytic enyzmes) or colorimetric (oxidative enzymes). Fluorometric analyses follow (Bell et al 2013) while colorimetric enzymes follow (Saiya-Cork et al 2002).  
+Each substrate represents a different type or complexity of organic matter that might be present in the soil, so it is imperative that they are analyzed separately. The entire enzymatic profile can also be considered, but here we will consider each substrate independently of the others. While this creates a lot of code, it is worth digging into each substrate's individual profile.
+
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = enz, aes(x = GrazeTime, y = Enzyme_nm_g_hr, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Enzymes 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme activity nm/g soil/hr") +
+  facet_wrap(~ Substrate)
+
+# step 2: look for influential data points
+sub <- unique(enz$Substrate)
+infl <- list()
+for(i in 1:length(sub)) {
+  infl <- c(infl, list(influence.measures(
+    lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = filter(enz, Substrate == sub[i])))))
+}
+names(infl) <- sub
+lapply(infl, summary)
+```
+##### AG
+
+Alpha-glucosidase, or AG, hydrolyzes starch. AG is considered a "simple" carbon substrate, and can represent the functional ability of soil microbes to degrade simple carbon complexes. This dataset shows a few low outliers that skew normality, and an uneven spread of residuals vs. explanatory variables.
+
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "AG",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "AG",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+##### BG
+
+Beta-glucosidase, or BG, is one of the most commonly measured extracellular enzymes. BG hydrolyzes cellobiose to glucose, representing a fundamental and critical step in organic matter degradation. BG also represents a simple carbon complex. 
+
+The BG data shows several very low outliers that skew the fitted residuals and the normality.
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "BG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "BG",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "BG",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "BG",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "BG",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+##### BX  
+
+Beta-xylosidase, or BX, performs one step of hemicellulose degradation. BX is considered a moderately complex substrate. 
+
+The BX data also displays low outliers that skew normality.
+
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "BX",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "BX",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "BX",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "BX",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+##### CBH  
+
+Cellobiohydrolase, or CBH, acts in cellulose degradation. Cellulose is a more complex carbon substrate. The spread of residuals vs. explanatory variables is not even.
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "CBH",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "CBH",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "CBH",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "CBH",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+##### LAP  
+
+Leucine aminopeptidase, or LAP, degrades polypeptides. LAP is involved in nitrogen cycling, so is used as a proxy for functional activity in N cycling. If outliers were removed, the diagnostic plots show that LAP would fit the assumptions of a linear regression model.
+
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "LAP",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "LAP",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "LAP",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "LAP",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+```
+
+
+##### NAG  
+
+N-acetyl-beta-glucosaminidase degrades chitin, which is a complex molecule but highly abundant in nature. There are just a few outliers that skew normality, but the dataset could pass the assumptions for a linear regression model.
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "NAG",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "NAG",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "NAG",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "NAG",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+##### PER1  
+
+PER1 represents the net activity of phenol peroxidase, which degrades lignin. This is one of two substrates (PHENOX and PEROX) that are measured colorimetrically instead of fluorometrically, modifying the procedure of (Saiya-Cork et al., 2002). Diagnostic plots show that the data violates normality and spread of residuals vs. explanatory variables. 
+
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "PER1",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "PER1",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "PER1",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "PER1",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+##### PEROX
+
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "PEROX",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "PEROX",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "PEROX",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "PEROX",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+##### PHENOX  
+
+PHENOX stands for phenol oxidase, which is another oxidative enzyme that degrades lignin. This substrate is also measured colorimetrically, similar to PEROX. The data shows similar patterns, and several high outliers skew normality as well as the residuals vs. explanatory variables are off.
+
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "PHENOX",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "PHENOX",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "PHENOX",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "PHENOX",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+##### PHOS
+
+Acid phosphatase, or PHOS, is the lone substrate that analyzes P-cycling, as acid phosphatase degrades phosphate esters. This data is zero-inflated and has high outliers. Additionally, the spread of residuals varies widely for the GrazeTime explanatory variable.
+
+```{r}
+# step 3: fit regression and look for violations of assumptions
+  
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz[enz$Substrate %in% "PHOS",]$Enzyme_nm_g_hr)
+qqline(enz[enz$Substrate %in% "PHOS",]$Enzyme_nm_g_hr)
+plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "PHOS",])), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "PHOS",])), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+#### Vegetation biomass
+
+Vegetation biomass was quantified indirectly via rising plate pasture meter (RPM). The RPM has a flat metal disk that drops down onto the vegetation and is stopped by the density of the vegetation. The number that is recorded is the length that the metal plate drops. The RPM 'reading' is regressed to traditional clipped & dried vegetation biomass, to get an equation to convert RPM readings to vegetation structure. Vegetation structure is presented in units biomass per kg per plot (1/2 acre).
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = veg, aes(x = GrazeTime, y = biomass_kg_plot, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Vegetation 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Veg biomass per kg per plot")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg), add.smooth = FALSE, which = 1)
+qqnorm(veg$biomass_kg_plot)
+qqline(veg$biomass_kg_plot)
+plot(veg$GrazeTime, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(veg$Treatment, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+```{r}
+## LOG TRANFORMATION
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(log1p(biomass_kg_plot) ~ Treatment * GrazeTime, data = veg), add.smooth = FALSE, which = 1)
+qqnorm(log1p(veg$biomass_kg_plot))
+qqline(log1p(veg$biomass_kg_plot))
+plot(veg$GrazeTime, resid(lm(log1p(biomass_kg_plot) ~ Treatment * GrazeTime, data = veg)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(veg$Treatment, resid(lm(log1p(biomass_kg_plot) ~ Treatment * GrazeTime, data = veg)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+#### Forage Utilization
+
+Forage utilization is calculated based on vegetation biomass. Forage utilization is the amount of forage the cows eat or trample within the grazing period. For the HI treatment, it is PRE-24H/PRE and since the LO treatment grazed for a longer period of time, the forage utilization is PRE-1WK/PRE. Both calculations compare the forage measured 24 hours after the grazing treatment concluded, compared to the baseline data. The plot shows a significant difference between the forage utilization of the two treatments, which is not what we wanted to see. Ideally the treatments would have the same forage utilziation, indiciating the same severity of grazing at different intensities.
+The diagnostic plots for forage utilization will include a different linear regression model, since there is no GrazeTime factor, only one single forage utilization per treatment. Since the forage eaten is compared to the forage in the ungrazed plots, there is no forage utilization for the NO Treatment. There is n = 4 for each HI and LO treatment, one for each corresponding plot.
+The data violates normality and the spread of residuals.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = for.ut18, aes(x = Treatment, y = forage_ut, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Forage Utilization 2018 Outliers") +
+  labs(x = "Treatment", y = "Forage utilization")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(forage_ut ~ Treatment, data = for.ut18)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(1,1), mar = c(5, 4, 1, 2))
+plot(lm(forage_ut ~ Treatment, data = for.ut18), add.smooth = FALSE, which = 1)
+qqnorm(for.ut18$forage_ut)
+qqline(for.ut18$forage_ut)
+
+```
+
+#### Vegetation Recovery
+
+Vegetation recovery is a calculation to measure how much the biomass changed per day of recovery following grazing. HI Grazing had 28 days of recovery while LO had 22 days of recovery, and the NO grazing control had 35 days which was all days of the grazing trial from PRE to 4WK. Similarly to Forage Utilization, there is one calculation for each plot.
+There is only one influential measure, and the data is not normal
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = veg.rec18, aes(x = Treatment, y = veg_rec, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Vegetation Recovery 2018 Outliers") +
+  labs(x = "Treatment", y = "Vegetation Recovery")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(veg_rec ~ Treatment, data = veg.rec18)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(1,2), mar = c(5, 4, 1, 2))
+plot(lm(veg_rec ~ Treatment, data = veg.rec18), add.smooth = FALSE, which = 1)
+qqnorm(veg.rec18$veg_rec)
+qqline(veg.rec18$veg_rec)
+
+```
+
+
+### 2017 Data 
+
+The sampling design in 2017's grazing trial was such that there are 240 total samples, 5 from each plot of each GrazeTime. The methods and procedures for the analyses are identical to 2018 methods unless otherwise noted.
+
+#### Gravimetric moisture  
+
+Data exploration shows several outliers and influential measures, which indicate a high level of environmental variability. However, a log transformation of the explanatory variable (gravimetric moisture) significantly improves the normality and spread of residuals. The linear regression model still does not fit this data sufficiently, but it is close.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = grav17, aes(x = GrazeTime, y = Gravmois, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Gravimetric Moisture 2017 Outliers") +
+  labs(x = "GrazeTime", y = "% gravimetric moisture")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(Gravmois ~ Treatment * GrazeTime, data = grav17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Gravmois ~ Treatment * GrazeTime, data = grav17), add.smooth = FALSE, which = 1)
+qqnorm(grav17$Gravmois)
+qqline(grav17$Gravmois)
+plot(grav17$GrazeTime, resid(lm(Gravmois ~ Treatment * GrazeTime, data = grav17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(grav17$Treatment, resid(lm(Gravmois ~ Treatment * GrazeTime, data = grav17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+## step 3 with a log transformation
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(log1p(Gravmois) ~ Treatment * GrazeTime, data = grav17), add.smooth = FALSE, which = 1)
+qqnorm(log1p(grav17$Gravmois))
+qqline(log1p(grav17$Gravmois))
+plot(grav17$GrazeTime, resid(lm(log1p(Gravmois) ~ Treatment * GrazeTime, data = grav17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(grav17$Treatment, resid(lm(log1p(Gravmois) ~ Treatment * GrazeTime, data = grav17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+#### pH  
+
+pH was measured via electrode (Thomas 1996) in a 2:1 deonized water:soil solution. pH was only measured for times PRE and 4WK to ensure that grazing or seasonality did not have a significant difference on pH. The diagnostic plots show that there are multiple outliers that influence normality. Deleting outliers could sway this data to appropriately fit a linear regression.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = ph17, aes(x = GrazeTime, y = pH, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("pH 2017 Outliers") +
+  labs(x = "GrazeTime", y = "pH")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(pH ~ Treatment * GrazeTime, data = ph17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(pH ~ Treatment * GrazeTime, data = ph17), add.smooth = FALSE, which = 1)
+qqnorm(ph17$pH)
+qqline(ph17$pH)
+plot(ph17$GrazeTime, resid(lm(pH ~ Treatment * GrazeTime, data = ph17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(ph17$Treatment, resid(lm(pH ~ Treatment * GrazeTime, data = ph17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### Nitrate-N  
+
+The problem with this dataset is that there were so many zeros that the QQplot turns asymptotic, and the spread of residuals is heteroscedastic. The multiple influential measures are almost all zeros. This problem is remedied in the 2018 data, since composited samples ensured there was less environmental noise and compensated for some spatial heterogeneity.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn17, aes(x = GrazeTime, y = NO3_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Nitrate-N 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Nitrate-N mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17), add.smooth = FALSE, which = 1)
+qqnorm(cn17$NO3_mgkgdrysoil)
+qqline(cn17$NO3_mgkgdrysoil)
+plot(cn17$GrazeTime, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn17$Treatment, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### Ammonium-N  
+
+There are less outliers for 2017 Ammonium-N than 2017 Nitrate-N. However, the QQplot is still asymptotic and while the spread of residuals for explanatory variables is more even, the residuals vs. fitted plot shows problems.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn17, aes(x = GrazeTime, y = NH4_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Ammonium-N 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Ammonium-N mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17), add.smooth = FALSE, which = 1)
+qqnorm(cn17$NH4_mgkgdrysoil)
+qqline(cn17$NH4_mgkgdrysoil)
+plot(cn17$GrazeTime, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn17$Treatment, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### Mineral N  
+
+The boxplot and influential measures function for mineral N resembles Nitrate-N more than Ammonium-N, suggesting that overall Nitrate numbers have more influence than Ammonium on mineral N. The diagnostic plots show that the dataset violates normality and heteroscedasity and is not fit for a linear regression model.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn17, aes(x = GrazeTime, y = minN_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Mineral-N 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Mineral-N mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(minN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(minN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17), add.smooth = FALSE, which = 1)
+qqnorm(cn17$minN_mgkgdrysoil)
+qqline(cn17$minN_mgkgdrysoil)
+plot(cn17$GrazeTime, resid(lm(minN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn17$Treatment, resid(lm(minN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### NPOC  
+
+NPOC also shows a high amount of variability and many outliers, but a log transformation significantly improves the relationship. Even with a log transformation, the dataset is not normal and outliers would need to be removed to improve the normality.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn17, aes(x = GrazeTime, y = NPOC_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("NPOC 2017 Outliers") +
+  labs(x = "GrazeTime", y = "NPOC mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17), add.smooth = FALSE, which = 1)
+qqnorm(cn17$NPOC_mgkgdrysoil)
+qqline(cn17$NPOC_mgkgdrysoil)
+plot(cn17$GrazeTime, resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn17$Treatment, resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+## step 3 with a log transformation
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(log1p(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn17), add.smooth = FALSE, which = 1)
+qqnorm(log1p(cn17$NPOC_mgkgdrysoil))
+qqline(log1p(cn17$NPOC_mgkgdrysoil))
+plot(cn17$GrazeTime, resid(lm(log1p(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn17$Treatment, resid(lm(log1p(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### DON 
+
+Dissolved organic nitrogen fits the assumptions of a linear regression well, except that the outliers skew normality. If outliers were removed it would likely fit the model assumptions.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn17, aes(x = GrazeTime, y = DON_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("DON 2017 Outliers") +
+  labs(x = "GrazeTime", y = "DON mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17), add.smooth = FALSE, which = 1)
+qqnorm(cn17$DON_mgkgdrysoil)
+qqline(cn17$DON_mgkgdrysoil)
+plot(cn17$GrazeTime, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn17$Treatment, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### MBC
+
+Microbial biomass C was measured by fumigation-extraction (Horwath and Paul, 1994) with 0.5M K~2~SO~4~ and the combustion catalytic oxidation/NDIR method (Shimadzu TOC-VCPH with TNM-1, Shimadzu Corporation). A standard k~ec~ of 0.45 was used (Vance et al, 1985). MBC was calculated by subtracting NPOC of non-fumigated samples from NPOC of fumigated samples. Due to a laboratory error, there are 7 missing values for MBC and MBN. MBC was only measured for the 2017 grazing trial, since it was determined that the method was not sensitive enough for this project.
+The dataset shows that although the data is not heterscedastic, it is zero-inflated and would fit another model more appropriately than a linear regression.
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = mbc17, aes(x = GrazeTime, y = MBC_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("MBC 2017 Outliers") +
+  labs(x = "GrazeTime", y = "MBC mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(MBC_mgkgdrysoil ~ Treatment * GrazeTime, data = mbc17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(MBC_mgkgdrysoil ~ Treatment * GrazeTime, data = mbc17), add.smooth = FALSE, which = 1)
+qqnorm(mbc17$MBC_mgkgdrysoil)
+qqline(mbc17$MBC_mgkgdrysoil)
+plot(mbc17$GrazeTime, resid(lm(MBC_mgkgdrysoil ~ Treatment * GrazeTime, data = mbc17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(mbc17$Treatment, resid(lm(MBC_mgkgdrysoil ~ Treatment * GrazeTime, data = mbc17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### MBN  
+
+Microbial biomass N was only measured for 2017 samples. MBN is analyzed similarly to MBC, except with a standard k~ec~ of 0.54 (Brookes et al, 1985). In contrast to MBC, the MBN dataset is normally distributed and not zero-inflated, but the spread of fitted residuals is not ideal. 
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = mbc17, aes(x = GrazeTime, y = MBN_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("MBN 2017 Outliers") +
+  labs(x = "GrazeTime", y = "MBN mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(MBN_mgkgdrysoil ~ Treatment * GrazeTime, data = mbc17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(MBN_mgkgdrysoil ~ Treatment * GrazeTime, data = mbc17), add.smooth = FALSE, which = 1)
+qqnorm(mbc17$MBN_mgkgdrysoil)
+qqline(mbc17$MBN_mgkgdrysoil)
+plot(mbc17$GrazeTime, resid(lm(MBN_mgkgdrysoil ~ Treatment * GrazeTime, data = mbc17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(mbc17$Treatment, resid(lm(MBN_mgkgdrysoil ~ Treatment * GrazeTime, data = mbc17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+
+#### Extracellular enzyme assays
+
+Extracellular enzyme assays were conducted similarly as in 2018, following a modified procedure by (Bell et al, 2013). 
+
+The boxplot and influential measures function for each of the 10 substrates shows similar trends as the 2018 dataset, except with considerably more varability. This is to be expected since these samples were not composited, and so there are more samples reflecting the true spatial variation and environmental noise than the composited samples. 
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = enz17, aes(x = GrazeTime, y = Enzyme_nm_g_hr, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Enzymes 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme activity nm/g soil/hr") +
+  facet_wrap(~ Substrate)
+
+# step 2: look for influential data points
+sub <- unique(enz17$Substrate)
+infl <- list()
+for(i in 1:length(sub)) {
+  infl <- c(infl, list(influence.measures(
+    lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = filter(enz17, Substrate == sub[i])))))
+}
+names(infl) <- sub
+lapply(infl, summary)
+```
+
+##### AG
+
+Violates normality and spread of fitted residuals.
+
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "AG",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "AG",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "AG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "AG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "AG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "AG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+
+##### BG
+
+Data looks normal and spread of residuals looks good
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "BG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "BG",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "BG",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "BG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "BG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "AG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "BG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### BX
+
+Violates normality because of high and low outliers.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "BX",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "BX",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "BX",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "BX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "BX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "AG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "BX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### CBH 
+
+Zero-inflated and high outliers, although the spread of residuals against explanatory variables is good.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "CBH",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "CBH",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "CBH",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "CBH"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "CBH",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "CBH"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "CBH",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### LAP
+
+A few more extreme outliers, and spread of residuals is different by treatment.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "LAP",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "LAP",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "LAP",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "LAP"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "LAP",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "LAP"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "LAP",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+##### NAG
+
+Weird skew to QQplot shows non-normality.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "NAG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "NAG",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "NAG",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "NAG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "NAG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "NAG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "NAG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+
+
+##### PER1
+
+Zero-inflated, spread of residuals is different by GrazeTime
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "PER1",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "PER1",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "PER1",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "PER1"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "PER1",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "PER1"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "PER1",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+
+##### PEROX
+
+Zero-inflated and a few high outliers
+```{r}
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "PEROX",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "PEROX",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "PEROX",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "PEROX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "PEROX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "PEROX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "PEROX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+
+
+##### PHENOX
+
+Spread of fitted residuals is off, zero inflated plus high outliers.
+
+```{r}
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "PHENOX",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "PHENOX",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "PHENOX",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "PHENOX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "PHENOX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "PHENOX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "PHENOX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+##### PHOS
+
+VERY bad skew to QQplot, spread of residuals vs. explanatory variables is all bad, fitted residuals spread is all bad.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz17[enz17$Substrate %in% "PHOS",]), add.smooth = FALSE, which = 1)
+qqnorm(enz17[enz17$Substrate %in% "PHOS",]$Enzyme_nm_g_hr)
+qqline(enz17[enz17$Substrate %in% "PHOS",]$Enzyme_nm_g_hr)
+plot(enz17$GrazeTime[enz17$Substrate %in% "PHOS"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "PHOS",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz17$Treatment[enz17$Substrate %in% "PHOS"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz17[enz17$Substrate %in% "PHOS",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+
+#### Microbial Efficiency  
+
+Microbial efficiency is described as the enzymatic activity per unit of microbial biomass. This standardizes extracellular enzymatic activity to better describe the level of functional activity in the soil. Microbial efficiency is only calculated for 2017, since microbial biomass C was not analyzed in 2018. Microbial efficiency is calculated as:
+  $$Eff = Enzyme Activity / Microbial Biomass$$  
+  
+The diagnostic plots for microbial efficiency will look similar to enzyme activity above.
+
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = eff17, aes(x = GrazeTime, y = efficiency, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Microbial Efficiency 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Microbial Efficiency") +
+  facet_wrap(~ Substrate)
+
+# step 2: look for influential data points
+sub <- unique(eff17$Substrate)
+infl <- list()
+for(i in 1:length(sub)) {
+  infl <- c(infl, list(influence.measures(
+    lm(efficiency ~ Treatment * GrazeTime, data = filter(eff17, Substrate == sub[i])))))
+}
+names(infl) <- sub
+lapply(infl, summary)
+```
+
+##### AG
+
+The spread of fitted values vs residuals is very off, and the QQplot shows several points drawing off normality. 
+
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "AG",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "AG",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "AG"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "AG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "AG"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "AG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+##### BG
+
+The spread of residuals vs fitted values is varied, and the QQplot is not a good shape.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "BG",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "BG",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "BG",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "BG"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "BG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "AG"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "BG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### BX
+
+This substrate follows similar trend as the others, violates normality.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "BX",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "BX",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "BX",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "BX"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "BX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "BX"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "BX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### CBH 
+
+CBH follows the same trend as the other substrates
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "CBH",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "CBH",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "CBH",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "CBH"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "CBH",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "CBH"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "CBH",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### LAP
+
+This follows the same pattern as the other substrates.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "LAP",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "LAP",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "LAP",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "LAP"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "LAP",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "LAP"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "LAP",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+##### NAG
+
+The NAG substrate follows the same pattern as the other substrate.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "NAG",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "NAG",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "NAG",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "NAG"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "NAG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "NAG"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "NAG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+
+
+##### PER1
+
+This follows the same pattern as the other substrates.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "PER1",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "PER1",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "PER1",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "PER1"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "PER1",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "PER1"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "PER1",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+
+##### PEROX
+
+Same pattern as the others.
+```{r}
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "PEROX",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "PEROX",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "PEROX",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "PEROX"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "PEROX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "PEROX"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "PEROX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+
+
+##### PHENOX
+
+Same as the other patterns.
+```{r}
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "PHENOX",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "PHENOX",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "PHENOX",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "PHENOX"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "PHENOX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "PHENOX"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "PHENOX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+##### PHOS
+
+It seems that there are two outliers drawing off the rest of the dataset. If those two outliers were removed the pattern would look very different.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(efficiency ~ Treatment * GrazeTime, data = eff17[eff17$Substrate %in% "PHOS",]), add.smooth = FALSE, which = 1)
+qqnorm(eff17[eff17$Substrate %in% "PHOS",]$efficiency)
+qqline(eff17[eff17$Substrate %in% "PHOS",]$efficiency)
+plot(eff17$GrazeTime[eff17$Substrate %in% "PHOS"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "PHOS",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(eff17$Treatment[eff17$Substrate %in% "PHOS"], 
+     resid(lm(efficiency ~ Treatment * GrazeTime,
+              data = eff17[eff17$Substrate %in% "PHOS",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+
+#### Vegetation biomass
+
+During 2017 data collection, not enough traditional clipped biomass was collected to have an acceptable regression between RPM readings and clipped biomass. The 2018 regression line is used to convert RPM readings to kg dry biomass per plot. 
+Interestingly, this is the first dataset without potential influential observations. Based on the diagnostic plots, this data fits the assumptions of a linear regression model.
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = rpm17, aes(x = GrazeTime, y = biomass_kg_plot, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Vegetation 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Veg biomass per kg per plot")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = rpm17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = rpm17), add.smooth = FALSE, which = 1)
+qqnorm(rpm17$biomass_kg_plot)
+qqline(rpm17$biomass_kg_plot)
+plot(rpm17$GrazeTime, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = rpm17)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(rpm17$Treatment, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = rpm17)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+#### Forage Utilization
+
+Similarly to the 2018 data, forage utilization is a calculation based on days of grazing. 
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = for.ut17, aes(x = Treatment, y = forage_ut, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Forage Utilization 2018 Outliers") +
+  labs(x = "Treatment", y = "Forage utilization")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(forage_ut ~ Treatment, data = for.ut17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(1,2), mar = c(5, 4, 1, 2))
+plot(lm(forage_ut ~ Treatment, data = for.ut17), add.smooth = FALSE, which = 1)
+qqnorm(for.ut17$forage_ut)
+qqline(for.ut17$forage_ut)
+
+```
+
+#### Vegetation Recovery
+
+This is calculated based on the 2017 days of recovery, which is similar to the 2018 data and has some minor differences based on timing of the grazing trial. In contrast to the 2018 data, the 2017 data shows that there is a difference in vegetation recovery between HI and LO/NO. The HI treatment showed a significantly higher vegetation recovery than the LO and NO treatments did.  
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = veg.rec17, aes(x = Treatment, y = veg_rec, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Vegetation Recovery 2017 Outliers") +
+  labs(x = "Treatment", y = "Vegetation Recovery")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(veg_rec ~ Treatment, data = veg.rec17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(1,2), mar = c(5, 4, 1, 2))
+plot(lm(veg_rec ~ Treatment, data = veg.rec17), add.smooth = FALSE, which = 1)
+qqnorm(veg.rec17$veg_rec)
+qqline(veg.rec17$veg_rec)
+```
+
+### 2018 and 2017 Combined Data
+
+These analyses will be repeated on each inidividual univariate parameter, with combined 2018 and 2017 data. The 2017 data will be averaged by plot to match the n of the 2018 data.
+
+```{r, echo = FALSE, include = FALSE}
+## Combining 2017 and 2018 data
+
+
+## cn and cn17
+grav18 <- cn[,1:5]
+cn$grav_mois <- NULL
+cn17$mineralN_mgkgdrysoil <- cn17$minN_mgkgdrysoil
+cn17$minN_mgkgdrysoil <- NULL
+unique(names(cn)) %in% unique(names(cn17))
+
+# average 2017 data by plot 
+
+cn17.avg <- data.frame(summarise(group_by(.data = cn17, Plot, Block, Treatment, GrazeTime),
+                                 NO3_mgkgdrysoil = mean(NO3_mgkgdrysoil, na.rm = TRUE),
+                                 NH4_mgkgdrysoil = mean(NH4_mgkgdrysoil, na.rm = TRUE),
+                                 NPOC_mgkgdrysoil = mean(NPOC_mgkgdrysoil, na.rm = TRUE),
+                                 DON_mgkgdrysoil = mean(DON_mgkgdrysoil, na.rm = TRUE),
+                                 mineralN_mgkgdrysoil = mean(mineralN_mgkgdrysoil, na.rm = TRUE)))
+cn.all <- rbind(cn17.avg, cn)
+
+## Gravimetric Moisture
+grav17.avg <- data.frame(summarise(group_by(.data = grav17, Plot, Block, Treatment, GrazeTime),
+                                   grav_mois = mean(Gravmois, na.rm = TRUE)))
+grav.all <- rbind(grav18, grav17.avg)
+
+## Enzymes
+enz17.avg <- data.frame(summarise(group_by(.data = enz17, Plot, Block, Treatment,
+                                           GrazeTime, Substrate),
+                                  Enzyme_nm_g_hr = mean(Enzyme_nm_g_hr, na.rm = TRUE)))
+enz.all <- rbind(enz17.avg, enz)
+
+## Veg Biomass
+veg$reading_rpm <- NULL
+veg17.avg <- data.frame(summarise(group_by(.data = rpm17, Plot, Block, Treatment, GrazeTime),
+                                  biomass_kg_plot = mean(biomass_kg_plot, na.rm = TRUE)))
+veg.all <- rbind(veg, veg17.avg)
+
+## Forage Utilization
+for.ut.all <- rbind(for.ut17, for.ut18)
+
+## Vegetation Recovery
+veg.rec.all <- rbind(veg.rec17, veg.rec18)
+
+
+```
+#### Gravimetric Moisture
+
+The boxplot shows a few outliers but considerable variation  as the grazing trials progress, indicating that moisture is likely influenced by seasonality. There are no potential influential observations, but the linear regression diagnostic plots show that the data are not normal and are potentially heteroscedastic.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = grav.all, aes(x = GrazeTime, y = grav_mois, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Grav Moisture 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Gravimetric Moisture %")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(grav_mois ~ Treatment * GrazeTime, data = grav.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(grav_mois ~ Treatment * GrazeTime, data = grav.all), add.smooth = FALSE, which = 1)
+qqnorm(grav.all$grav_mois)
+qqline(grav.all$grav_mois)
+plot(grav.all$GrazeTime, resid(lm(grav_mois ~ Treatment * GrazeTime, data = grav.all)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(grav.all$Treatment, resid(lm(grav_mois ~ Treatment * GrazeTime, data = grav.all)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+```
+
+#### pH
+
+#### Dissolved organic carbon
+
+There are two major outliers that show on the boxplot and the influential measures function. A log transformation improves normality and heteroscedasticy, so with the outliers removed this dataset would potentially fit a linear regression model.
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn.all, aes(x = GrazeTime, y = NPOC_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("NPOC 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NPOC mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(log1p(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn.all), add.smooth = FALSE, which = 1)
+qqnorm(log1p(cn.all$NPOC_mgkgdrysoil))
+qqline(log1p(cn.all$NPOC_mgkgdrysoil))
+plot(cn.all$GrazeTime, resid(lm(log1p(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn.all)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn.all$Treatment, resid(lm(log1p(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn.all)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+```
+
+
+#### Dissolved organic nitrogen
+
+There is a lot of variability in this dataset that creates violations of the linear regression model assumptions. High and low outliers skew normality and fitted residuals.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn.all, aes(x = GrazeTime, y = DON_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("DON 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "DON mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all), add.smooth = FALSE, which = 1)
+qqnorm(cn.all$DON_mgkgdrysoil)
+qqline(cn.all$DON_mgkgdrysoil)
+plot(cn.all$GrazeTime, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn.all$Treatment, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+```
+
+#### Nitrate-N
+
+This data is zero-inflated, but also has several high outliers creating heteroscedasity and non-normality.
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn.all, aes(x = GrazeTime, y = NO3_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("NO3 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NO3 mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all), add.smooth = FALSE, which = 1)
+qqnorm(cn.all$NO3_mgkgdrysoil)
+qqline(cn.all$NO3_mgkgdrysoil)
+plot(cn.all$GrazeTime, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn.all$Treatment, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+
+```
+
+#### Ammonium-N
+
+There is one major outlier from the 2018 data that is extremely influential. With the outlier removed the data would likely fit the linear regression assumptions.
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn.all, aes(x = GrazeTime, y = NH4_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("NH4 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NH4 mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all), add.smooth = FALSE, which = 1)
+qqnorm(cn.all$NH4_mgkgdrysoil)
+qqline(cn.all$NH4_mgkgdrysoil)
+plot(cn.all$GrazeTime, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn.all$Treatment, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+```
+
+#### Mineral-N
+
+There are still several outliers that throw off this dataset. However, they can't all be removed since there is only one sample per plot.
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = cn.all, aes(x = GrazeTime, y = mineralN_mgkgdrysoil, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Mineral N 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Mineral N mg per kg dry soil")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all), add.smooth = FALSE, which = 1)
+qqnorm(cn.all$mineralN_mgkgdrysoil)
+qqline(cn.all$mineralN_mgkgdrysoil)
+plot(cn.all$GrazeTime, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(cn.all$Treatment, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn.all)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+```
+
+#### Extracellular Enzyme Assays
+
+#### Vegetation Biomass
+
+The combined vegetation data is more variable than the individual years. Therefore, it will be more difficult to draw conclusions. The data are not normal, but there are no outliers or influential observations.
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = veg.all, aes(x = GrazeTime, y = biomass_kg_plot, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Veg Biomass 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Veg Biomass kg per plot")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg.all), add.smooth = FALSE, which = 1)
+qqnorm(veg.all$biomass_kg_plot)
+qqline(veg.all$biomass_kg_plot)
+plot(veg.all$GrazeTime, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg.all)), xlab = "GrazeTime", ylab = "Residuals", 
+     main = "Residuals vs. explan. var.")
+plot(veg.all$Treatment, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg.all)), xlab = "Treatment", ylab = "Residuals",
+     main = "Residuals vs. explan. var.")
+
+```
+
+#### Forage Utilization
+
+The 2017 data did not have to be averaged to combine it with the 2018 data, because there is one forage utilization calculation per plot for the grazed treatments only. There are no outliers or potentially influential observations, but the data aren't quite normal and fitted residuals are not randomly distributed.
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = for.ut.all, aes(x = Treatment, y = forage_ut, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Forage Utilization 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "Forage utilization")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(forage_ut ~ Treatment, data = for.ut.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(1,2), mar = c(5, 4, 1, 2))
+plot(lm(forage_ut ~ Treatment, data = for.ut.all), add.smooth = FALSE, which = 1)
+qqnorm(for.ut.all$forage_ut)
+qqline(for.ut.all$forage_ut)
+```
+
+
+#### Vegetation Recovery
+
+Similarly to forage utilization, the 2017 vegetation recovery does not have to be averaged since there is one calculation per plot. There are two outliers, one of which is potentially influential, but the fitted residuals are not distributed randomly and the data are not normal.
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = veg.rec.all, aes(x = Treatment, y = veg_rec, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Vegetation Recovery 2017 Outliers") +
+  labs(x = "Treatment", y = "Vegetation Recovery")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(veg_rec ~ Treatment, data = veg.rec.all)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(1,2), mar = c(5, 4, 1, 2))
+plot(lm(veg_rec ~ Treatment, data = veg.rec.all), add.smooth = FALSE, which = 1)
+qqnorm(veg.rec.all$veg_rec)
+qqline(veg.rec.all$veg_rec)
+
 ```
 
