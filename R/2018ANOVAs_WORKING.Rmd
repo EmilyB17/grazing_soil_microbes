@@ -1745,6 +1745,224 @@ plot(cn.all$Treatment, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, da
 
 #### Extracellular Enzyme Assays
 
+The boxplot shows that there may be less outliers with the combined 2017 and 2018 data than with individual years. However, there are still outliers for every substrate 
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = enz.all, aes(x = GrazeTime, y = Enzyme_nm_g_hr, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Enzymes 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme activity nm/g soil/hr") +
+  facet_wrap(~ Substrate)
+
+# step 2: look for influential data points
+sub <- unique(enz.all$Substrate)
+infl <- list()
+for(i in 1:length(sub)) {
+  infl <- c(infl, list(influence.measures(
+    lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = filter(enz.all, Substrate == sub[i])))))
+}
+names(infl) <- sub
+lapply(infl, summary)
+```
+
+##### AG
+
+Data is fairly close to being normal.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "AG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "AG",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "AG",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "AG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "AG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "AG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "AG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+
+##### BG
+
+There are a few low outliers drawing everything off.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "BG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "BG",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "BG",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "BG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "BG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "AG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "BG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### BX
+
+There are a few high and low outliers, but is close to fitting assumptions.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "BX",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "BX",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "BX",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "BX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "BX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "AG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "BX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### CBH 
+
+There are a few high and low outliers.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "CBH",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "CBH",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "CBH",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "CBH"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "CBH",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "CBH"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "CBH",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+##### LAP
+
+There are a few low outliers drawing off normality, but the spread of residuals is good.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "LAP",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "LAP",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "LAP",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "LAP"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "LAP",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "LAP"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "LAP",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+##### NAG
+
+The combined data looks more normal than the individual years.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "NAG",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "NAG",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "NAG",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "NAG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "NAG",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "NAG"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "NAG",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+
+
+##### PER1
+
+The QQplot has a weird shape.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "PER1",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "PER1",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "PER1",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "PER1"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "PER1",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "PER1"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "PER1",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+
+##### PEROX
+
+The spread of fitted residuals is good, but the spread of residuals versus explanatory variables is heteroscedastic.
+```{r}
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "PEROX",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "PEROX",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "PEROX",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "PEROX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "PEROX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "PEROX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "PEROX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+```
+
+
+##### PHENOX
+
+The spread of residuals looks much better with combined data than individual years.
+
+```{r}
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "PHENOX",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "PHENOX",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "PHENOX",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "PHENOX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "PHENOX",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "PHENOX"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "PHENOX",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+##### PHOS
+
+QQplot still shows a weird shape, and the spread of fitted residuals shows a non-linear relationship.
+```{r}
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
+plot(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz.all[enz.all$Substrate %in% "PHOS",]), add.smooth = FALSE, which = 1)
+qqnorm(enz.all[enz.all$Substrate %in% "PHOS",]$Enzyme_nm_g_hr)
+qqline(enz.all[enz.all$Substrate %in% "PHOS",]$Enzyme_nm_g_hr)
+plot(enz.all$GrazeTime[enz.all$Substrate %in% "PHOS"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "PHOS",])),
+     xlab = "GrazeTime", ylab = "Residuals", main = "Residuals vs. explan. var.")
+plot(enz.all$Treatment[enz.all$Substrate %in% "PHOS"], 
+     resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime,
+              data = enz.all[enz.all$Substrate %in% "PHOS",])),
+     xlab = "Treatment", ylab = "Residuals", main = "Residuals vs. explan. var.")
+
+```
+
+
 #### Vegetation Biomass
 
 The combined vegetation data is more variable than the individual years. Therefore, it will be more difficult to draw conclusions. The data are not normal, but there are no outliers or influential observations.
