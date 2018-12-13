@@ -12,37 +12,51 @@ output:
 ##### Author: Emily Bean  
 ##### Author contact: ebean@uwyo.edu  
 
-```{r, echo = FALSE, include = FALSE}
+```{r, include = FALSE, message = FALSE, warning = FALSE}
 ## All packages required & sourced data
 require(ggplot2)
 require(dplyr)
 require(lme4)
 require(MuMIn)
-source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData2018.R")
-source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData.R")
+prepDataGLM17 <- function(data) {
+  data$SampDate <- NULL
+  data$Plot <- NULL
+  data$Block <- factor(data$Block)
+  data$Treatment <- as.factor(data$Treatment)
+  data$GrazeTime <- factor(data$GrazeTime)
+  data$Sample <- NULL
+  return(data)
+}
+prepDataGLM18 <- function(data) {
+  data$Plot <- NULL
+  data$Block <- factor(data$Block)
+  data$Treatment <- as.factor(data$Treatment)
+  data$GrazeTime <- factor(data$GrazeTime)
+  return(data)
+}
 
 ## Read in data
-cn <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018CN_data_updated10_18.txt", header = TRUE))
+cn <- prepDataGLM18(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018CN_data_updated10_18.txt", header = TRUE))
 
-enz <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018enzymes_vertical.txt", header = TRUE))
+enz <- prepDataGLM18(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018enzymes_vertical.txt", header = TRUE))
 
-veg <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018rpm.txt", header = TRUE))
+veg <- prepDataGLM18(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018rpm.txt", header = TRUE))
 
-cn17 <- prepData(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017CN_data_updated10_18.txt", sep = "\t", header = TRUE))
+cn17 <- prepDataGLM17(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017CN_data_updated10_18.txt", sep = "\t", header = TRUE))
 
 mbc17 <- cn17[complete.cases(cn17),] # removes rows with NA values for MBC & MBN
 
-grav17 <- prepData(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017Gravimetric_moisture.txt", sep = "\t", header = TRUE))
+grav17 <- prepDataGLM17(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017Gravimetric_moisture.txt", sep = "\t", header = TRUE))
 
-enz17 <- prepData(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017enzymes_vertical.txt", sep = "\t", header = TRUE))
+enz17 <- prepDataGLM17(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017enzymes_vertical.txt", sep = "\t", header = TRUE))
 
-ph17 <- prepData(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017pH.txt", sep = "\t", header = TRUE))
+ph17 <- prepDataGLM17(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017pH.txt", sep = "\t", header = TRUE))
 
-rpm17 <- prepData2018(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/rpm_Plot48.txt", sep = "\t", header = TRUE))
+rpm17 <- prepDataGLM17(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/rpm_Plot48.txt", sep = "\t", header = TRUE))
 rpm17$biomass_kg_plot <- (82.322 * rpm17$Reading) - 341.742
 
 # create microbial efficiency calculation
-eff17 <- merge(mbc17, enz17, by = c("Plot", "Block", "Treatment", "GrazeTime", "Sample"))
+eff17 <- merge(mbc17, enz17, by = c("Block", "Treatment", "GrazeTime"))
 eff17$efficiency <- eff17$Enzyme_nm_g_hr / eff17$MBC_mgkgdrysoil
 eff17$efficiency[eff17$efficiency %in% "Inf"] <- 0
 eff17$efficiency[eff17$efficiency %in% "NaN"] <- 0
@@ -172,20 +186,27 @@ plot(cn$Treatment, resid(lm(grav_mois ~ Treatment * GrazeTime, data = cn)), xlab
      main = "Residuals vs. explan. var.")
 
 ```
-The best-fitting model according to the dredge() function is: `r grav_mois ~ GrazeTime + (1 | Block`. This has an AIC of 265, which is quite high. However, the QQplot of the residuals still doesn't look good, so this type of model still does not fit this dataset well.
+The best-fitting model according to the dredge() function is: `r grav_mois ~ GrazeTime + 1`. This has an AIC of 265, which is quite high. However, the QQplot of the residuals still doesn't look good, so this type of model still does not fit this dataset well. The summary indicates that almost all GrazeTimes are significant.
 
 ```{r}
+cn$GrazeTime <- factor(cn$GrazeTime, ordered = FALSE)
 # fit a Gamma distribution with a log link
-(get.models(dredge(glmer(grav_mois ~ Treatment * GrazeTime + (1 | Block),
-                         family = Gamma(link = "log"), data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))
+(get.models(dredge(
+  glm(grav_mois ~ .,
+        family = Gamma(link = "log"), data = cn, na.action = "na.fail")),
+  subset = cumsum(weight) <= 0.95))
 
 # check the normality of the residuals with a QQplot
-qqnorm(resid(glmer(grav_mois ~ GrazeTime + (1 | Block), data = cn,  family = Gamma(link = "log"))))
-qqline(resid(glmer(grav_mois ~ GrazeTime + (1 | Block), data = cn,  family = Gamma(link = "log"))))
+qqnorm(resid(glm(formula = grav_mois ~ GrazeTime + 1, family = Gamma(link = "log"), 
+                 data = cn, na.action = "na.fail")))
+qqline(resid(glm(formula = grav_mois ~ GrazeTime + 1, family = Gamma(link = "log"), 
+                 data = cn, na.action = "na.fail")))
 
 # summarize the best fit model
-## This model still isn't fitting the dataset well, so it can't be summarized
+summary(glm(formula = grav_mois ~ GrazeTime + 1, family = Gamma(link = "log"), 
+            data = cn, na.action = "na.fail"))
+
+
 ```
 
 
@@ -218,35 +239,24 @@ plot(cn$GrazeTime, resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)
 plot(cn$Treatment, resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
      main = "Residuals vs. explan. var.")
 ```
-```{r}
-# Log transformation
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(log10(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
-E <- resid(lm(log10(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn))
-qqnorm(log10(cn$NPOC_mgkgdrysoil))
-qqline(log10(cn$NPOC_mgkgdrysoil))
-plot(cn$GrazeTime, resid(lm(log10(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn$Treatment, resid(lm(log10(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-```
 
-For this dataset, a log transformation suitably improves the data to run a GLM. The best fit model is `r log(NPOC_mgkgdrysoil) ~ GrazeTime + Treatment + 1`. The QQplot looks suitable. The summary of the model shows significance at the intercept, GrazeTimes, and the control treatment. This could potentially indicate that beyond GrazeTime, grazing could decrease dissolved organic carbon.
+For this dataset, a log transformation suitably improves the data to run a GLM. The best fit model shows that dissolved organic nitrogen is strongly related to dissolved organic carbon, and GrazeTime is also a significant factor, along with a Block effect
                  
 ```{r}
 # fit a Gaussian (normal) distribution with a log transformation
-(get.models(dredge(glm(log(NPOC_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))
+(get.models(dredge(glm(log(NPOC_mgkgdrysoil) ~ ., data = cn, na.action = "na.fail")),
+            subset = cumsum(weight) <= 0.95))[1]
 
 # check the normality of the residuals with a QQplot
-qqnorm(resid(glm(formula = log(NPOC_mgkgdrysoil) ~ GrazeTime + Treatment + 
-                   1, data = cn, na.action = "na.fail")))
-qqline(resid(glm(formula = log(NPOC_mgkgdrysoil) ~ GrazeTime + Treatment + 
-                   1, data = cn, na.action = "na.fail")))
+qqnorm(resid(glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
+                   GrazeTime + Treatment + 1, data = cn, na.action = "na.fail")))
+qqline(resid(glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
+                   GrazeTime + Treatment + 1, data = cn, na.action = "na.fail")))
 
 # summarize the best fit model
-summary(glm(formula = log(NPOC_mgkgdrysoil) ~ GrazeTime + Treatment + 
-              1, data = cn, na.action = "na.fail"))
+summary(glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
+              GrazeTime + Treatment + 1, data = cn, na.action = "na.fail"))
+
 
 ```
 
@@ -278,18 +288,22 @@ plot(cn$GrazeTime, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn))
 plot(cn$Treatment, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
      main = "Residuals vs. explan. var.")
 ```
-For this dataset, non-transformed data had the smallest AIC, and the dredge() function pulled the best fit function as: `r DON_mgkgdrysoil ~ GrazeTime + 1`. The summary shows that only GrazeTime is significant, so there does not seem to be a Treatment effect.
+For this dataset, non-transformed data had the smallest AIC, and the best fit model determined that mineral N and NPOC were the strongest determinants of DON. 
 ```{r}
 # fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))
+(get.models(dredge(glm(DON_mgkgdrysoil ~ ., data = cn, na.action = "na.fail")),
+            subset = cumsum(weight) <= 0.95))[1]
 
 # check the normality of the residuals with a QQplot
-qqnorm(resid(glm(DON_mgkgdrysoil ~ GrazeTime + 1, data = cn, na.action = "na.fail")))
-qqline(resid(glm(DON_mgkgdrysoil ~ GrazeTime + 1, data = cn, na.action = "na.fail")))
+qqnorm(resid(glm(formula = DON_mgkgdrysoil ~ mineralN_mgkgdrysoil + NPOC_mgkgdrysoil + 
+                   1, data = cn, na.action = "na.fail")))
+qqline(resid(glm(formula = DON_mgkgdrysoil ~ mineralN_mgkgdrysoil + NPOC_mgkgdrysoil + 
+                   1, data = cn, na.action = "na.fail")))
 
 # summarize the best fit model
-summary(glm(DON_mgkgdrysoil ~ GrazeTime + 1, data = cn, na.action = "na.fail"))
+summary(glm(formula = DON_mgkgdrysoil ~ mineralN_mgkgdrysoil + NPOC_mgkgdrysoil + 
+              1, data = cn, na.action = "na.fail"))
+
 ```
 
 
@@ -320,25 +334,27 @@ plot(cn$GrazeTime, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn))
 plot(cn$Treatment, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
      main = "Residuals vs. explan. var.")
 ```
-Based on solely an AIC test, it seems that the Gaussian distribution with a log transformation was the most appropriate action for this data, but the QQplot of the residuals of the selected model parameters looks awful. This is another dataset that will need further examination.
+Based on solely an AIC test, it seems that the Gaussian distribution with a log transformation was the most appropriate action for this data, but the QQplot of the residuals of the selected model parameters still does not fit well. The selected model parameters were DON and NPOC, which illustrates that all biogeochemical parameters are more related to either other than GrazeTime or Treatment.
 ```{r}
 # change zeros to infintesimally small numbers
 cn$NO3_mgkgdrysoil[cn$NO3_mgkgdrysoil == 0] <- 0.00000000001
 
 
 # fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(log(NO3_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))
+(get.models(dredge(glm(log(NO3_mgkgdrysoil) ~ ., data = cn, na.action = "na.fail")),
+            subset = cumsum(weight) <= 0.95))[1]
 
 # check the normality of the residuals with a QQplot
-qqnorm(resid(glm(log(NO3_mgkgdrysoil) ~ GrazeTime + 1, data = cn, 
-                 na.action = "na.fail")))
-qqline(resid(glm(log(NO3_mgkgdrysoil) ~ GrazeTime + 1, data = cn, 
-                 na.action = "na.fail")))
+qqnorm(resid(glm(formula = log(NO3_mgkgdrysoil) ~ DON_mgkgdrysoil + NPOC_mgkgdrysoil + 
+                   1, data = cn, na.action = "na.fail")))
+qqline(resid(glm(formula = log(NO3_mgkgdrysoil) ~ DON_mgkgdrysoil + NPOC_mgkgdrysoil + 
+                   1, data = cn, na.action = "na.fail")))
 
 # summarize the best fit model
-summary(glm(log(NO3_mgkgdrysoil) ~ GrazeTime + 1, data = cn, 
-            na.action = "na.fail"))
+summary(glm(formula = log(NO3_mgkgdrysoil) ~ DON_mgkgdrysoil + NPOC_mgkgdrysoil + 
+              1, data = cn, na.action = "na.fail"))
+
+
 ```
 
 #### Ammonium-N
@@ -370,59 +386,25 @@ plot(cn$Treatment, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn))
      main = "Residuals vs. explan. var.")
 ```
 
-This dataset also looked like fit a Gaussian distribution with a log transformation the most appropriately. The best fit model based on the dredge() function was `r NH4_mgkgdrysoil) ~ Treatment + 1`. The summary of the model shows that the HI treatment is significant to both the LO and NO treatment.
-This suggests that high-intensity grazing has a positive impact on soil ammonium levels.
+A log-transformed Gaussian distribution fit this data most appropriately, and the selected model parameters show significance with Gravimetric moisture, mineral N, nitrate, and NPOC.
 ```{r}
-# select the most appropriate distribuation based on AIC
-AIC(glm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn))
-AIC(glm(log(NH4_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn, na.action = "na.omit"))
-AIC(glm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn, family = Gamma(link = "log"),
-        na.action = "na.fail"))
 
 # fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(log(NH4_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))
+(get.models(dredge(glm(log(NH4_mgkgdrysoil) ~ ., data = cn, na.action = "na.fail")),
+            subset = cumsum(weight) <= 0.95))[1]
 
 # check the normality of the residuals with a QQplot
-qqnorm(resid(glm(log(NH4_mgkgdrysoil) ~ Treatment + 1, data = cn, 
-                 na.action = "na.fail")))
-qqline(resid(glm(log(NH4_mgkgdrysoil) ~ Treatment + 1, data = cn, 
-                 na.action = "na.fail")))
+qqnorm(resid(glm(formula = log(NH4_mgkgdrysoil) ~ grav_mois + mineralN_mgkgdrysoil + 
+                   NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, data = cn, na.action = "na.fail")))
+qqline(resid(glm(formula = log(NH4_mgkgdrysoil) ~ grav_mois + mineralN_mgkgdrysoil + 
+                   NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, data = cn, na.action = "na.fail")))
 
 # summarize the best fit model
-summary(glm(log(NH4_mgkgdrysoil) ~ Treatment + 1, data = cn, 
-            na.action = "na.fail"))
-        
+summary(glm(formula = log(NH4_mgkgdrysoil) ~ grav_mois + mineralN_mgkgdrysoil + 
+              NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, data = cn, na.action = "na.fail"))
+
 ```
 
-
-
-
-
-```{r}
-## WITHOUT THE OUTLIER
-# step 1: look for outliers with a boxplot
-ggplot(data = cn[-34,], aes(x = GrazeTime, y = NH4_mgkgdrysoil, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Ammonium-N 2018 Outliers") +
-  labs(x = "GrazeTime", y = "Ammonium mg/kg dry soil")
-
-
-# step 2: check for influential data points
-summary(influence.measures(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,]), add.smooth = FALSE, which = 1)
-qqnorm(cn[-34,]$NH4_mgkgdrysoil)
-qqline(cn[-34,]$NH4_mgkgdrysoil)
-plot(cn[-34,]$GrazeTime, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn[-34,]$Treatment, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-```
 
 #### Mineral-N
 
@@ -452,72 +434,26 @@ plot(cn$GrazeTime, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data =
 plot(cn$Treatment, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
      main = "Residuals vs. explan. var.")
 ```
-This data also seems to fit a log-tranformed Gaussian well, althought the best fit model has a QQPlot with several residual outliers. The summary of the best fit model shows that HI treatment is significant to LO and NO treatment, which follows the same trend as ammonium, likely because nitrate is so zero-inflated.
+This data also seems to fit a log-tranformed Gaussian well. The summary of the best fit model parameters shows significance with DON, ammonium, nitrate, and NPOC.
 ```{r}
+
 # fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(log(mineralN_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))
+(get.models(dredge(glm(log(mineralN_mgkgdrysoil) ~ ., data = cn, na.action = "na.fail")),
+            subset = cumsum(weight) <= 0.95))[1]
 
 # check the normality of the residuals with a QQplot
-qqnorm(resid(glm(log(mineralN_mgkgdrysoil) ~ Treatment + 1, data = cn, 
-                 na.action = "na.fail")))
-qqline(resid(glm(log(mineralN_mgkgdrysoil) ~ Treatment + 1, data = cn, 
-                 na.action = "na.fail")))
+qqnorm(resid(glm(formula = log(mineralN_mgkgdrysoil) ~ DON_mgkgdrysoil + grav_mois + 
+                   NH4_mgkgdrysoil + NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, 
+                 data = cn, na.action = "na.fail")))
+qqline(resid(glm(formula = log(mineralN_mgkgdrysoil) ~ DON_mgkgdrysoil + grav_mois + 
+                   NH4_mgkgdrysoil + NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, 
+                 data = cn, na.action = "na.fail")))
 
 # summarize the best fit model
-summary(glm(log(mineralN_mgkgdrysoil) ~ Treatment + 1, data = cn, 
-            na.action = "na.fail"))
-        
-```
+summary(glm(formula = log(mineralN_mgkgdrysoil) ~ DON_mgkgdrysoil + grav_mois + 
+              NH4_mgkgdrysoil + NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, 
+            data = cn, na.action = "na.fail"))
 
-```{r}
-## WITHOUT THE OUTLIER
-# step 1: look for outliers with a boxplot
-ggplot(data = cn[-34,], aes(x = GrazeTime, y = mineralN_mgkgdrysoil, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Mineral-N 2018 Outliers") +
-  labs(x = "GrazeTime", y = "Mineral N mg/kg dry soil")
-
-
-# step 2: check for influential data points
-summary(influence.measures(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,]), add.smooth = FALSE, which = 1)
-qqnorm(cn[-34,]$mineralN_mgkgdrysoil)
-qqline(cn[-34,]$mineralN_mgkgdrysoil)
-plot(cn[-34,]$GrazeTime, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn[-34,]$Treatment, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-```
-
-```{r}
-## LOG TRANSFORMED & WITHOUT THE OUTLIER
-# step 1: look for outliers with a boxplot
-ggplot(data = cn[-34,], aes(x = GrazeTime, y = mineralN_mgkgdrysoil, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Mineral-N 2018 Outliers") +
-  labs(x = "GrazeTime", y = "Mineral N mg/kg dry soil")
-
-
-# step 2: check for influential data points
-summary(influence.measures(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn[-34,])))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(log1p(mineralN_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn[-34,]), add.smooth = FALSE, which = 1)
-qqnorm(log1p(cn[-34,]$mineralN_mgkgdrysoil))
-qqline(log1p(cn[-34,]$mineralN_mgkgdrysoil))
-plot(cn[-34,]$GrazeTime, resid(lm(log1p(mineralN_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn[-34,]$Treatment, resid(lm(log1p(mineralN_mgkgdrysoil) ~ Treatment * GrazeTime, data = cn[-34,])), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
 ```
 
 
@@ -562,6 +498,29 @@ plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[e
 plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "AG",])), xlab = "Treatment", ylab = "Residuals",
      main = "Residuals vs. explan. var.")
 ```
+The GLM model shows that the best fitting explanatory variables are Block and Treatment. The QQplot still is not fitting well, but the summary shows that there are significant differences between Block 4, and between the LO and NO treatments.
+
+```{r}
+# massage the data to make GLM syntax happy
+x <- enz[enz$Substrate %in% "AG",]
+x$Substrate <- NULL
+x$Enzyme_nm_g_hr[x$Enzyme_nm_g_hr == 0] <- 0.000000001
+# fit a Gaussian (normal) distribution 
+(get.models(dredge(
+  glm(log(Enzyme_nm_g_hr) ~ ., data = x ,  na.action = "na.fail")),
+  subset = cumsum(weight) <= 0.95))[1]
+
+# check the normality of the residuals with a QQplot
+qqnorm(resid(glm(formula = log(Enzyme_nm_g_hr) ~ Block + Treatment + 1, data = x, 
+                 na.action = "na.fail")))
+qqline(resid(glm(formula = log(Enzyme_nm_g_hr) ~ Block + Treatment + 1, data = x, 
+                 na.action = "na.fail")))
+
+# summarize the best fit model
+summary(glm(formula = log(Enzyme_nm_g_hr) ~ Block + Treatment + 1, data = x, 
+            na.action = "na.fail"))
+
+```
 
 ##### BG
 
@@ -580,6 +539,25 @@ plot(cn$GrazeTime, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[e
      main = "Residuals vs. explan. var.")
 plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[enz$Substrate %in% "BG",])), xlab = "Treatment", ylab = "Residuals",
      main = "Residuals vs. explan. var.")
+```
+This data looks very similar to AG, where the model selects Plot as the best fitting explanatory variable. However, several outliers still skew the QQplot.
+```{r}
+# massage the data to make GLM syntax happy
+x <- enz[enz$Substrate %in% "BG",]
+x$Substrate <- NULL
+x$Enzyme_nm_g_hr[x$Enzyme_nm_g_hr == 0] <- 0.000000001
+# fit a Gaussian (normal) distribution 
+(get.models(dredge(
+  glm(log(Enzyme_nm_g_hr) ~ ., data = x ,  na.action = "na.fail")),
+  subset = cumsum(weight) <= 0.95))[1]
+
+# check the normality of the residuals with a QQplot
+qqnorm(resid(glm(formula = log(Enzyme_nm_g_hr) ~ Plot + 1, data = x, na.action = "na.fail")))
+qqline(resid(glm(formula = log(Enzyme_nm_g_hr) ~ Plot + 1, data = x, na.action = "na.fail")))
+
+# summarize the best fit model
+summary(glm(formula = log(Enzyme_nm_g_hr) ~ Plot + 1, data = x, na.action = "na.fail"))
+
 ```
 
 ##### BX  
@@ -755,6 +733,24 @@ plot(veg$GrazeTime, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg
 plot(veg$Treatment, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg)), xlab = "Treatment", ylab = "Residuals",
      main = "Residuals vs. explan. var.")
 ```
+The best fitting model based on the dredge() function is including parameters of Grazetime, Treatment, and their interaction. There is significance with GrazeTime, and with GrazeTime/Treatment interactions.
+
+```{r}
+# fit a Gaussian (normal) distribution 
+(get.models(dredge(glm(log(biomass_kg_plot) ~ ., data = veg, na.action = "na.fail")),
+            subset = cumsum(weight) <= 0.95))
+
+# check the normality of the residuals with a QQplot
+qqnorm(resid(glm(log(biomass_kg_plot) ~ GrazeTime + Treatment + 
+                   GrazeTime:Treatment + 1, data = veg, na.action = "na.fail")))
+qqline(resid(glm(log(biomass_kg_plot) ~ GrazeTime + Treatment + 
+                   GrazeTime:Treatment + 1, data = veg, na.action = "na.fail")))
+
+# summarize the best fit model
+summary(glm(log(biomass_kg_plot) ~ GrazeTime + Treatment + 
+              GrazeTime:Treatment + 1, data = veg, na.action = "na.fail"))
+
+```
 
 ```{r}
 ## LOG TRANFORMATION
@@ -793,6 +789,20 @@ op <- par(mfrow = c(1,1), mar = c(5, 4, 1, 2))
 plot(lm(forage_ut ~ Treatment, data = for.ut18), add.smooth = FALSE, which = 1)
 qqnorm(for.ut18$forage_ut)
 qqline(for.ut18$forage_ut)
+
+```
+This is a narrower dataset, as there are less datapoints. The best fit model was a Gaussian distribution without a log transformation. The two treatments are significant to each other.
+```{r}
+# fit a Gaussian (normal) distribution 
+(get.models(dredge(glm(forage_ut ~ Treatment, data = for.ut18, na.action = "na.fail")),
+            subset = cumsum(weight) <= 0.95))
+
+# check the normality of the residuals with a QQplot
+qqnorm(resid(glm(forage_ut ~ Treatment + 1, data = for.ut18, na.action = "na.fail")))
+qqline(resid(glm(forage_ut ~ Treatment + 1, data = for.ut18, na.action = "na.fail")))
+
+# summarize the best fit model
+summary(glm(forage_ut ~ Treatment + 1, data = for.ut18, na.action = "na.fail"))
 
 ```
 
