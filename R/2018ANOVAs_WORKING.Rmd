@@ -140,6 +140,78 @@ no.rec$Treatment <- "NO"
 veg.rec17 <- rbind(hi.rec, lo.rec, no.rec)
 veg.rec17$Treatment <- as.factor(veg.rec17$Treatment)
 
+## Functions to perform uniform data analysis on all variables
+# First function performs step 1 through 3
+# where "data" is a dataframe and "variable.name" is a character string of the response variable
+step1to3 <- function(data, variable.name) {
+  f <- as.formula(paste(variable.name, "~", " Treatment * GrazeTime", sep = ""))
+  # create model object
+  mod <- lm(f, data = data)
+  # check for influential data points
+  sum <- summary(influence.measures(mod))
+  
+  # delineate graphical parameters
+  op <- par(mfrow = c(3,2), mar = c(5, 4, 1, 2))    
+  # boxplot to look for outliers
+  p <- boxplot(f, data = data, main = "Boxplot for Outliers")
+  
+  # create standard model validation graphs
+  # plot 1: residuals vs. fitted values (test homogeneity)
+  p1 <- plot(lm(f, data = data), add.smooth = FALSE, which = 1)
+  # plot 2: QQ plot (test normality)
+  p2 <- qqnorm(resid(mod))
+  p3 <- qqline(resid(mod))
+  # plot 3: residuals vs each explanatory variable (test independence)
+  p4 <- plot(data$GrazeTime, 
+             resid(mod), xlab = "GrazeTime", ylab = "Residuals", 
+             main = "Residuals vs. explan. var.")
+  p5 <- plot(data$Treatment, resid(mod), xlab = "Treatment", ylab = "Residuals",
+             main = "Residuals vs. explan. var.")
+  
+  return(list(sum, p, p1, p2, p3, p4))
+  #return(p1, p2, p3, p4)
+}
+
+
+# function to perform steps 4 through 5 of data analysis
+# arguments: data is a dataframe
+# variable.name is a character string of the response variable
+step4to5 <- function(data, variable.name) {
+  # perform dredge function to find the best fitting model parameters
+  # Gamma distribution
+  f<- as.formula(paste(variable.name, " ~ .", sep = ""))
+  modsGamma <- get.models(dredge(
+    glm(f,
+        family = Gamma(link = "log"), data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  # Gaussian distribution
+  modsGaussian <- get.models(dredge(
+    glm(f,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  # Gaussian with a log distribution
+  f1 <- as.formula(paste( "log(", variable.name, ")",  " ~ .", sep = ""))
+  modsGaussianLog <- get.models(dredge(
+    glm(f1,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  # summarize the 3 models in one list
+  combine <- list(modsGamma, modsGaussian, modsGaussianLog)
+  names(combine) <- c("Gamma", "Gaussian", "GaussianLog")
+  
+  # print QQPlots for the 3 models to determine which is the best fit
+  op <- par(mfrow = c(3,1))
+  qqnorm(resid(modsGamma[[1]]), main = "Gamma QQPlot")
+  qqline(resid(modsGamma[[1]]))
+  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian QQPlot")
+  qqline(resid(modsGaussian[[1]]))
+  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog QQPlot")
+  qqline(resid(modsGaussianLog[[1]]))
+  # return the list of model summaries
+  return(combine)
+}
+
+
 ```
 
 The purpose of this document is to hold the statistical analyses and write-ups with explanations and results in one place. Finalized code will be as concise as possible.  
@@ -162,49 +234,14 @@ Univariate analyses will be organized by subject, starting with 2018 data, then 
 
 Gravimetric moisture was measured by drying and weighing the soil at 105C for 24 hours. The boxplot does not indicate any statistical outliers. There are appear to be two data points that are potentially influential. The plots that validate the assumptions of linear regression clearly display that almost all assumptions are violated: the residuals vs. fitted plot shows a lopsided spread of residuals, the QQ-plot shows non-normality, and there is a heteroscedastic spread of residuals for the explanatory variable GrazeTime. Clearly, linear regression is not the way to go for this variable.
 
-```{r}
-# step 1: look for outliers with a boxplot
-ggplot(data = cn, aes(x = GrazeTime, y = grav_mois, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Gravimetric Moisture 2018 Outliers") +
-  labs(x = "GrazeTime", y = "Gravimetric moisture %")
-
-# step 2: check for influential data points
-summary(influence.measures(lm(grav_mois ~ Treatment * GrazeTime, data = cn)))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(grav_mois ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
-E <- resid(lm(grav_mois ~ Treatment * GrazeTime, data = cn))
-qqnorm(cn$grav_mois)
-qqline(cn$grav_mois)
-plot(cn$GrazeTime, resid(lm(grav_mois ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn$Treatment, resid(lm(grav_mois ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-
+```{r, include = FALSE}
+x <- step1to3(data = cn, variable.name = cn$grav_mois)
+x
 ```
 The best-fitting model according to the dredge() function is: `r grav_mois ~ GrazeTime + 1`. This has an AIC of 265, which is quite high. However, the QQplot of the residuals still doesn't look good, so this type of model still does not fit this dataset well. The summary indicates that almost all GrazeTimes are significant.
 
 ```{r}
-cn$GrazeTime <- factor(cn$GrazeTime, ordered = FALSE)
-# fit a Gamma distribution with a log link
-(get.models(dredge(
-  glm(grav_mois ~ .,
-        family = Gamma(link = "log"), data = cn, na.action = "na.fail")),
-  subset = cumsum(weight) <= 0.95))
-
-# check the normality of the residuals with a QQplot
-qqnorm(resid(glm(formula = grav_mois ~ GrazeTime + 1, family = Gamma(link = "log"), 
-                 data = cn, na.action = "na.fail")))
-qqline(resid(glm(formula = grav_mois ~ GrazeTime + 1, family = Gamma(link = "log"), 
-                 data = cn, na.action = "na.fail")))
-
-# summarize the best fit model
-summary(glm(formula = grav_mois ~ GrazeTime + 1, family = Gamma(link = "log"), 
-            data = cn, na.action = "na.fail"))
+(step4to5(data = cn, variable.name = cn$grav_mois))
 
 
 ```
