@@ -14,10 +14,14 @@ output:
 
 ```{r, include = FALSE, message = FALSE, warning = FALSE}
 ## All packages required & sourced data
-require(ggplot2)
-require(dplyr)
-require(lme4)
-require(MuMIn)
+if(!require(ggplot2)) install.packages("ggplot2")
+library(ggplot2)
+if(!require(dplyr)) install.packages("dplyr")
+library(dplyr)
+if(!require(lme4)) install.packages("lme4")
+library(lme4)
+if(!require(MuMIn)) install.packages("MuMIn")
+library(MuMIn)
 prepDataGLM17 <- function(data) {
   data$SampDate <- NULL
   data$Plot <- NULL
@@ -245,6 +249,9 @@ Univariate analyses will be organized by subject, starting with 2018 data, then 
 #### Gravimetric Moisture  
 
 Gravimetric moisture was measured by drying and weighing the soil at 105C for 24 hours. The boxplot does not indicate any statistical outliers. There are appear to be two data points that are potentially influential. The plots that validate the assumptions of linear regression clearly display that almost all assumptions are violated: the residuals vs. fitted plot shows a lopsided spread of residuals, the QQ-plot shows non-normality, and there is a heteroscedastic spread of residuals for the explanatory variable GrazeTime. Clearly, linear regression is not the way to go for this variable.
+The dredge function shows that the log-transformed Gaussian distribution has the lowest AIC by over 100 units. That model determines that GrazeTime and nitrate are the best fitting explanatory variables. The plotted confidence intervals indicate that the intercept (1WK GrazeTime) is significant from the other GrazeTimes, and nitrate is also significant from the other variables.
+
+This data analysis indicates that GrazeTime and nitrate are the best explanatory variables for gravimetric moisture. There is a significantly high spike in soil moisture at the 1WK time point, which is likely attributed to a rain event and seasonal fluxes. Nitrate is correlated to gravimetric moisture, so there are biogeochemical drivers at work which warrant further inspection.
 
 ```{r, include = FALSE}
 x <- step1to3(data = cn, variable.name = "grav_mois")
@@ -255,208 +262,47 @@ z <- step6(bestModel = glm(formula = log(grav_mois) ~ GrazeTime + NO3_mgkgdrysoi
     1, data = cn, na.action = "na.fail"))
 z
 ```
-The best-fitting model according to the dredge() function is: `r grav_mois ~ GrazeTime + 1`. This has an AIC of 265, which is quite high. However, the QQplot of the residuals still doesn't look good, so this type of model still does not fit this dataset well. The summary indicates that almost all GrazeTimes are significant.
-
-```{r}
-(step4to5(data = cn, variable.name = cn$grav_mois))
-
-
-```
 
 
 #### Dissolved Organic Carbon (non-purgeable organic carbon)  
 
 Non-purgeable organic carbon (NPOC) is analyzed in the same way as dissolved organic carbon, except the carbonates are burnt off before analysis. This is the preferred method for soils that have a high pH and large amounts of inorganic carbon. Briefly, a 10g subsample of soil was extracted in 50mL 0.5M K~2~SO~4~ and filtered throuh Q50 Whatman filters. The extracts were analyzed for NPOC and DON via combustion catalytic oxidation/NDIR method (Shimadzu TOC-VCPH with TNM-1, Shimadzu Corporation).
-The boxplot shows two outliers, both in the NO treatment but at different time points. There is one influential measure, and the diagnostic plots clearly show a violation of homogeneity and normality.
-After a log transformation, the spread of residuals looks more uniform and the QQ-plot looks more normal, although not perfect. The spread of residuals for each explanatory variable is even. Therefore, a log transformation is suitable for this variable to meet the assumptions of a linear regression.
+There is one influential measure, and the linear regression assumptions are met except for the fitted residuals, which show vertical patterns. The best fitting model based on AIC is the log-tranformed Gaussian distribution, which shows that the explanatory variables are Block, dissolved organic nitrogen, GrazeTime, and Treatment. However, examination of the confidence intervals shows a strong significance at Block 1, and the other variables don't seem significant to each other. The LO and NO treatment are significant from the Block and GrazeTime variables.
 
+This dataset shows that there is a strong block effect for the distribution of soil carbon, as well as an effect with GrazeTime and with Treatment. 
 ```{r}
-# step 1: look for outliers with a boxplot
-ggplot(data = cn, aes(x = GrazeTime, y = NPOC_mgkgdrysoil, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("NPOC 2018 Outliers") +
-  labs(x = "GrazeTime", y = "NPOC")
-
-# step 2: check for influential data points
-summary(influence.measures(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
-E <- resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn))
-qqnorm(cn$NPOC_mgkgdrysoil)
-qqline(cn$NPOC_mgkgdrysoil)
-plot(cn$GrazeTime, resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn$Treatment, resid(lm(NPOC_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-```
-
-For this dataset, a log transformation suitably improves the data to run a GLM. The best fit model shows that dissolved organic nitrogen is strongly related to dissolved organic carbon, and GrazeTime is also a significant factor, along with a Block effect
-                 
-```{r}
-# fit a Gaussian (normal) distribution with a log transformation
-(get.models(dredge(glm(log(NPOC_mgkgdrysoil) ~ ., data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))[1]
-
-# check the normality of the residuals with a QQplot
-qqnorm(resid(glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
-                   GrazeTime + Treatment + 1, data = cn, na.action = "na.fail")))
-qqline(resid(glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
-                   GrazeTime + Treatment + 1, data = cn, na.action = "na.fail")))
-
-# summarize the best fit model
-summary(glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
-              GrazeTime + Treatment + 1, data = cn, na.action = "na.fail"))
-
-
+x <- step1to3(data = cn, variable.name = "NPOC_mgkgdrysoil")
+y <- step4to5(data = cn, variable.name = "NPOC_mgkgdrysoil")
+y
+# make sure to change "data" to the dataframe
+z <- step6(bestModel = glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
+    GrazeTime + Treatment + 1, data = cn, na.action = "na.fail"))
+z
 ```
 
 
 #### Dissolved Organic Nitrogen
 
-Total organic N was analyzed via combustion catalytic oxidation/NDIR method (see NPOC above). DON was calculated by subtracting mineral N from total organic N. The boxplot shows two outliers, while there are 4 influ
+Total organic N was analyzed via combustion catalytic oxidation/NDIR method (see NPOC above). DON was calculated by subtracting mineral N from total organic N. There are four potentially influential observations, and the other statistical model validation plots show a slight violation of normality but all other assumptions are met.
 
-```{r}
-# step 1: look for outliers with a boxplot
-ggplot(data = cn, aes(x = GrazeTime, y = DON_mgkgdrysoil, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("DON 2018 Outliers") +
-  labs(x = "GrazeTime", y = "DON mg/kg dry soil")
-
-
-# step 2: check for influential data points
-summary(influence.measures(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
-qqnorm(cn$DON_mgkgdrysoil)
-qqline(cn$DON_mgkgdrysoil)
-plot(cn$GrazeTime, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn$Treatment, resid(lm(DON_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-```
-For this dataset, non-transformed data had the smallest AIC, and the best fit model determined that mineral N and NPOC were the strongest determinants of DON. 
-```{r}
-# fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(DON_mgkgdrysoil ~ ., data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))[1]
-
-# check the normality of the residuals with a QQplot
-qqnorm(resid(glm(formula = DON_mgkgdrysoil ~ mineralN_mgkgdrysoil + NPOC_mgkgdrysoil + 
-                   1, data = cn, na.action = "na.fail")))
-qqline(resid(glm(formula = DON_mgkgdrysoil ~ mineralN_mgkgdrysoil + NPOC_mgkgdrysoil + 
-                   1, data = cn, na.action = "na.fail")))
-
-# summarize the best fit model
-summary(glm(formula = DON_mgkgdrysoil ~ mineralN_mgkgdrysoil + NPOC_mgkgdrysoil + 
-              1, data = cn, na.action = "na.fail"))
-
-```
 
 
 #### Nitrate-N
 
 Nitrate-N was analyzed by extraction with 0.5M K~2~SO~4~ (Doane and Horwatch, 2003). Initial diagnostic plots indicate several problems. There are multiple outliers, but the outliers are spread through the GrazeTime, indicating that they are likely true outliers and not laboratory errors. There are multiple influential observations, and the linear regression plots show that the spread of residuals is uneven and the data is not normal. Log transformation does not improve the data in this case.
 
-```{r}
-# step 1: look for outliers with a boxplot
-ggplot(data = cn, aes(x = GrazeTime, y = NO3_mgkgdrysoil, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Nitate-N 2018 Outliers") +
-  labs(x = "GrazeTime", y = "Nitrate mg/kg dry soil")
-
-
-# step 2: check for influential data points
-summary(influence.measures(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
-qqnorm(cn$NO3_mgkgdrysoil)
-qqline(cn$NO3_mgkgdrysoil)
-plot(cn$GrazeTime, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn$Treatment, resid(lm(NO3_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-```
-Based on solely an AIC test, it seems that the Gaussian distribution with a log transformation was the most appropriate action for this data, but the QQplot of the residuals of the selected model parameters still does not fit well. The selected model parameters were DON and NPOC, which illustrates that all biogeochemical parameters are more related to either other than GrazeTime or Treatment.
-```{r}
-# change zeros to infintesimally small numbers
-cn$NO3_mgkgdrysoil[cn$NO3_mgkgdrysoil == 0] <- 0.00000000001
-
-
-# fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(log(NO3_mgkgdrysoil) ~ ., data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))[1]
-
-# check the normality of the residuals with a QQplot
-qqnorm(resid(glm(formula = log(NO3_mgkgdrysoil) ~ DON_mgkgdrysoil + NPOC_mgkgdrysoil + 
-                   1, data = cn, na.action = "na.fail")))
-qqline(resid(glm(formula = log(NO3_mgkgdrysoil) ~ DON_mgkgdrysoil + NPOC_mgkgdrysoil + 
-                   1, data = cn, na.action = "na.fail")))
-
-# summarize the best fit model
-summary(glm(formula = log(NO3_mgkgdrysoil) ~ DON_mgkgdrysoil + NPOC_mgkgdrysoil + 
-              1, data = cn, na.action = "na.fail"))
-
-
-```
-
 #### Ammonium-N
 
 The boxplot shows one extreme outlier. The analysis was repeated and the outlier remained extreme, so it is likely not a lab mistake. Therefore, this analysis will be performed with and without the outlier, to explore its true influence. After the outlier is removed, the data fits a linear regression model much better. However, removing this datapoint could be ignorant and problematic, as it could represent a true soil condition (for example, increased labile N from cattle urine). It could also represent an abnormality in spatial heterogeneity (for example, a sample from a patch of soil that was recently urinated on by a cow). Unfortunately, without knowing for sure I am hesitant to just get rid of the point.
 
 ```{r}
-## WITH THE OUTLIER
-# step 1: look for outliers with a boxplot
-ggplot(data = cn, aes(x = GrazeTime, y = NH4_mgkgdrysoil, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Ammonium-N 2018 Outliers") +
-  labs(x = "GrazeTime", y = "Ammonium mg/kg dry soil")
-
-
-# step 2: check for influential data points
-summary(influence.measures(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
-qqnorm(cn$NH4_mgkgdrysoil)
-qqline(cn$NH4_mgkgdrysoil)
-plot(cn$GrazeTime, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn$Treatment, resid(lm(NH4_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-```
-
-A log-transformed Gaussian distribution fit this data most appropriately, and the selected model parameters show significance with Gravimetric moisture, mineral N, nitrate, and NPOC.
-```{r}
-
-# fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(log(NH4_mgkgdrysoil) ~ ., data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))[1]
-
-# check the normality of the residuals with a QQplot
-qqnorm(resid(glm(formula = log(NH4_mgkgdrysoil) ~ grav_mois + mineralN_mgkgdrysoil + 
-                   NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, data = cn, na.action = "na.fail")))
-qqline(resid(glm(formula = log(NH4_mgkgdrysoil) ~ grav_mois + mineralN_mgkgdrysoil + 
-                   NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, data = cn, na.action = "na.fail")))
-
-# summarize the best fit model
-summary(glm(formula = log(NH4_mgkgdrysoil) ~ grav_mois + mineralN_mgkgdrysoil + 
-              NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, data = cn, na.action = "na.fail"))
-
+x <- step1to3(data = cn, variable.name = "NH4_mgkgdrysoil")
+y <- step4to5(data = cn, variable.name = "NH4_mgkgdrysoil")
+y
+# make sure to change "data" to the dataframe
+z <- step6(bestModel = glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
+    GrazeTime + Treatment + 1, data = cn, na.action = "na.fail"))
+z
 ```
 
 
@@ -465,49 +311,13 @@ summary(glm(formula = log(NH4_mgkgdrysoil) ~ grav_mois + mineralN_mgkgdrysoil +
 Mineral Nitrogen is the addition of nitrate-N and ammonium-N, and represents the pool of the most plant-available N in the soil. This analysis will also be done with and without the outlier from the Ammonium-N analysis. Obviously, the data fits the linear regression model better without the outlier, and a log transformation makes a slight improvement in normality, as evidenced by the QQplot.
 
 ```{r}
-## WITH THE OUTLIER
-# step 1: look for outliers with a boxplot
-ggplot(data = cn, aes(x = GrazeTime, y = mineralN_mgkgdrysoil, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Mineral-N 2018 Outliers") +
-  labs(x = "GrazeTime", y = "Mineral N mg/kg dry soil")
-
-
-# step 2: check for influential data points
-summary(influence.measures(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn), add.smooth = FALSE, which = 1)
-qqnorm(cn$mineralN_mgkgdrysoil)
-qqline(cn$mineralN_mgkgdrysoil)
-plot(cn$GrazeTime, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(cn$Treatment, resid(lm(mineralN_mgkgdrysoil ~ Treatment * GrazeTime, data = cn)), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
-```
-This data also seems to fit a log-tranformed Gaussian well. The summary of the best fit model parameters shows significance with DON, ammonium, nitrate, and NPOC.
-```{r}
-
-# fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(log(mineralN_mgkgdrysoil) ~ ., data = cn, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))[1]
-
-# check the normality of the residuals with a QQplot
-qqnorm(resid(glm(formula = log(mineralN_mgkgdrysoil) ~ DON_mgkgdrysoil + grav_mois + 
-                   NH4_mgkgdrysoil + NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, 
-                 data = cn, na.action = "na.fail")))
-qqline(resid(glm(formula = log(mineralN_mgkgdrysoil) ~ DON_mgkgdrysoil + grav_mois + 
-                   NH4_mgkgdrysoil + NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, 
-                 data = cn, na.action = "na.fail")))
-
-# summarize the best fit model
-summary(glm(formula = log(mineralN_mgkgdrysoil) ~ DON_mgkgdrysoil + grav_mois + 
-              NH4_mgkgdrysoil + NO3_mgkgdrysoil + NPOC_mgkgdrysoil + 1, 
-            data = cn, na.action = "na.fail"))
-
+x <- step1to3(data = cn, variable.name = "mineralN_mgkgdrysoil")
+y <- step4to5(data = cn, variable.name = "mineralN_mgkgdrysoil")
+y
+# make sure to change "data" to the dataframe
+z <- step6(bestModel = glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
+    GrazeTime + Treatment + 1, data = cn, na.action = "na.fail"))
+z
 ```
 
 
@@ -765,27 +575,14 @@ plot(cn$Treatment, resid(lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = enz[e
 Vegetation biomass was quantified indirectly via rising plate pasture meter (RPM). The RPM has a flat metal disk that drops down onto the vegetation and is stopped by the density of the vegetation. The number that is recorded is the length that the metal plate drops. The RPM 'reading' is regressed to traditional clipped & dried vegetation biomass, to get an equation to convert RPM readings to vegetation structure. Vegetation structure is presented in units biomass per kg per plot (1/2 acre).
 
 ```{r}
-# step 1: look for outliers with a boxplot
-ggplot(data = veg, aes(x = GrazeTime, y = biomass_kg_plot, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Vegetation 2018 Outliers") +
-  labs(x = "GrazeTime", y = "Veg biomass per kg per plot")
-
-
-# step 2: check for influential data points
-summary(influence.measures(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg)))
-
-# step 3: fit regression and look for violations of assumptions
-
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(2,2), mar = c(5, 4, 1, 2))
-plot(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg), add.smooth = FALSE, which = 1)
-qqnorm(veg$biomass_kg_plot)
-qqline(veg$biomass_kg_plot)
-plot(veg$GrazeTime, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg)), xlab = "GrazeTime", ylab = "Residuals", 
-     main = "Residuals vs. explan. var.")
-plot(veg$Treatment, resid(lm(biomass_kg_plot ~ Treatment * GrazeTime, data = veg)), xlab = "Treatment", ylab = "Residuals",
-     main = "Residuals vs. explan. var.")
+veg$reading_rpm <- NULL
+x <- step1to3(data = veg, variable.name = "biomass_kg_plot")
+y <- step4to5(data = veg, variable.name = "biomass_kg_plot")
+y
+# make sure to change "data" to the dataframe
+z <- step6(bestModel = glm(formula = log(grav_mois) ~ GrazeTime + NO3_mgkgdrysoil + 
+    1, data = cn, na.action = "na.fail"))
+z
 ```
 The best fitting model based on the dredge() function is including parameters of Grazetime, Treatment, and their interaction. There is significance with GrazeTime, and with GrazeTime/Treatment interactions.
 
