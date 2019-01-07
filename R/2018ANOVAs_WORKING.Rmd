@@ -38,7 +38,7 @@ prepDataGLM18 <- function(data) {
   data$GrazeTime <- factor(data$GrazeTime)
   return(data)
 }
-
+# test change for commit issues
 ## Read in data
 cn <- prepDataGLM18(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2018CN_data_updated10_18.txt", header = TRUE))
 
