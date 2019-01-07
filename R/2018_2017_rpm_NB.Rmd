@@ -253,4 +253,3 @@ ggplot(data = all, mapping = aes(x = Treatment, y = rpm_biomass, color = Treatme
   facet_wrap( ~ GrazeTime) + 
   ggtitle("2017 & 2018 data - RPM Biomass per Plot")
 ```
-
