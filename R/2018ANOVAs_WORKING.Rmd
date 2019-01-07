@@ -179,20 +179,25 @@ step1to3 <- function(data, variable.name) {
 step4to5 <- function(data, variable.name) {
   # perform dredge function to find the best fitting model parameters
   # Gamma distribution
-  f<- as.formula(paste(variable.name, " ~ .", sep = ""))
+  # make the Gamma distribution happy by replacing zeros with small number
+  dataf <- data
+  dataf$newcol <- ifelse(dataf[,variable.name] == 0, 0.0001, dataf[, variable.name])
+  dataf[, variable.name] <- NULL
+  f<- as.formula(paste("newcol", " ~ .", sep = ""))
   modsGamma <- get.models(dredge(
     glm(f,
-        family = Gamma(link = "log"), data = data, na.action = "na.fail")),
+        family = Gamma(link = "log"), data = dataf, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
   # Gaussian distribution
+  f1 <- as.formula(paste(variable.name, " ~ .", sep = ""))
   modsGaussian <- get.models(dredge(
-    glm(f,
+    glm(f1,
         data = data, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
   # Gaussian with a log distribution
-  f1 <- as.formula(paste( "log(", variable.name, ")",  " ~ .", sep = ""))
+  f2 <- as.formula(paste( "log(", variable.name, ")",  " ~ .", sep = ""))
   modsGaussianLog <- get.models(dredge(
-    glm(f1,
+    glm(f2,
         data = data, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
   # summarize the 3 models in one list
@@ -211,7 +216,7 @@ step4to5 <- function(data, variable.name) {
   return(combine)
 }
 
-step6 <- function(bestModel) { # best Model is the call , data is the dataframe
+step6 <- function(bestModel) { # best Model is the call , make sure to replace data with the dataframe
   s <- summary(bestModel[[1]])
   c <- data.frame(variable = row.names(confint(bestModel, level = 0.95)),
                      CI_2.5 = confint(bestModel, level = 0.95)[,1],
