@@ -50,6 +50,8 @@ cn17 <- prepDataGLM17(read.table("https://raw.githubusercontent.com/EmilyB17/gra
 
 mbc17 <- cn17[complete.cases(cn17),] # removes rows with NA values for MBC & MBN
 
+cn17 <- cn17[, -(9:10)] # removes MBC and MBN columns so NAs don't mess up GLMs
+
 grav17 <- prepDataGLM17(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017Gravimetric_moisture.txt", sep = "\t", header = TRUE))
 
 enz17 <- prepDataGLM17(read.table("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017enzymes_vertical.txt", sep = "\t", header = TRUE))
