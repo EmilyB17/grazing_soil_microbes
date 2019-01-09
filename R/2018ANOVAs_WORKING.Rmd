@@ -193,64 +193,105 @@ step4to5 <- function(data, variable.name) {
   dataf <- data
   dataf$newcol <- ifelse(dataf[,variable.name] == 0, 0.0001, dataf[, variable.name])
   dataf[, variable.name] <- NULL
-  f<- as.formula(paste("newcol", " ~ .", sep = ""))
+  f<- as.formula(paste("newcol", " ~ Treatment * GrazeTime", sep = ""))
   modsGamma <- get.models(dredge(
     glm(f,
         family = Gamma(link = "log"), data = dataf, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
-  # Gaussian distribution
-  f1 <- as.formula(paste(variable.name, " ~ .", sep = ""))
-  modsGaussian <- get.models(dredge(
+  f1 <- as.formula(paste("newcol", " ~ .", sep = ""))
+  modsGamma1 <- get.models(dredge(
     glm(f1,
-        data = data, na.action = "na.fail")),
+        family = Gamma(link = "log"), data = dataf, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
-  # Gaussian with a log distribution
-  f2 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ .", sep = ""))
-  modsGaussianLog <- get.models(dredge(
+  # Gaussian distribution
+  f2 <- as.formula(paste(variable.name, " ~ Treatment * GrazeTime", sep = ""))
+  modsGaussian <- get.models(dredge(
     glm(f2,
         data = data, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
+  f3 <- as.formula(paste(variable.name, " ~ .", sep = ""))
+  modsGaussian1 <- get.models(dredge(
+    glm(f3,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  # Gaussian with a log distribution
+  f4 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ Treatment * GrazeTime", sep = ""))
+  modsGaussianLog <- get.models(dredge(
+    glm(f4,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  f5 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ .", sep = ""))
+  modsGaussianLog1 <- get.models(dredge(
+    glm(f5,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
   # summarize the 3 models in one list
-  combine <- list(modsGamma, modsGaussian, modsGaussianLog)
-  names(combine) <- c("Gamma", "Gaussian", "GaussianLog")
+  combine <- list(modsGamma, modsGamma1, modsGaussian, modsGaussian1,
+                  modsGaussianLog, modsGaussianLog1)
+  names(combine) <- c("Gamma TrtGrz", "Gamma All", "Gaussian TrtGrz", 
+                      "Gaussian All","Gaussian Log TrtGrz", "Gaussian Log All")
   
   # print QQPlots for the 3 models to determine which is the best fit
-  op <- par(mfrow = c(3,1))
-  qqnorm(resid(modsGamma[[1]]), main = "Gamma QQPlot")
+  op <- par(mfrow = c(2, 3))
+  qqnorm(resid(modsGamma[[1]]), main = "Gamma TrtGrz QQPlot")
   qqline(resid(modsGamma[[1]]))
-  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian QQPlot")
+  qqnorm(resid(modsGamma1[[1]]), main = "Gamma All  QQPlot")
+  qqline(resid(modsGamma1[[1]]))
+  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian TrtGrz QQPlot")
   qqline(resid(modsGaussian[[1]]))
-  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog QQPlot")
+  qqnorm(resid(modsGaussian1[[1]]), main = "Gaussian All QQPlot")
+  qqline(resid(modsGaussian1[[1]]))
+  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog TrtGrz QQPlot")
   qqline(resid(modsGaussianLog[[1]]))
+  qqnorm(resid(modsGaussianLog1[[1]]), main = "GaussianLog All QQPlot")
+  qqline(resid(modsGaussianLog1[[1]]))
   # return the list of model summaries
   return(combine)
 }
+
 
 # This function removes the Gamma distribution for datasets that are too zero-inflated 
 step4to5zeroinfl <- function(data, variable.name) {
   # perform dredge function to find the best fitting model parameters
   # Gaussian distribution
-  f1 <- as.formula(paste(variable.name, " ~ .", sep = ""))
+  # Gaussian distribution
+  f2 <- as.formula(paste(variable.name, " ~ Treatment * GrazeTime", sep = ""))
   modsGaussian <- get.models(dredge(
-    glm(f1,
-        data = data, na.action = "na.fail")),
-    subset = cumsum(weight) <= 0.95)[1]
-  # Gaussian with a log distribution
-  f2 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ .", sep = ""))
-  modsGaussianLog <- get.models(dredge(
     glm(f2,
         data = data, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
+  f3 <- as.formula(paste(variable.name, " ~ .", sep = ""))
+  modsGaussian1 <- get.models(dredge(
+    glm(f3,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  # Gaussian with a log distribution
+  f4 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ Treatment * GrazeTime", sep = ""))
+  modsGaussianLog <- get.models(dredge(
+    glm(f4,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  f5 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ .", sep = ""))
+  modsGaussianLog1 <- get.models(dredge(
+    glm(f5,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
   # summarize the 3 models in one list
-  combine <- list(modsGaussian, modsGaussianLog)
-  names(combine) <- c("Gaussian", "GaussianLog")
+  combine <- list(modsGaussian, modsGaussian1,
+                  modsGaussianLog, modsGaussianLog1)
+  names(combine) <- c("Gaussian TrtGrz", 
+                      "Gaussian All","Gaussian Log TrtGrz", "Gaussian Log All")
   
   # print QQPlots for the 3 models to determine which is the best fit
-  op <- par(mfrow = c(2,1))
-  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian QQPlot")
+  op <- par(mfrow = c(2, 2))
+  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian TrtGrz QQPlot")
   qqline(resid(modsGaussian[[1]]))
-  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog QQPlot")
+  qqnorm(resid(modsGaussian1[[1]]), main = "Gaussian All QQPlot")
+  qqline(resid(modsGaussian1[[1]]))
+  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog TrtGrz QQPlot")
   qqline(resid(modsGaussianLog[[1]]))
+  qqnorm(resid(modsGaussianLog1[[1]]), main = "GaussianLog All QQPlot")
+  qqline(resid(modsGaussianLog1[[1]]))
   # return the list of model summaries
   return(combine)
 }
@@ -264,35 +305,58 @@ step4to5enz <- function(data, variable.name) {
   dataf <- data
   dataf$newcol <- ifelse(dataf[,variable.name] == 0, 0.0001, dataf[, variable.name])
   dataf[, variable.name] <- NULL
-  f<- as.formula(paste("newcol", " ~ .", sep = ""))
+  f<- as.formula(paste("newcol", " ~ Treatment * GrazeTime", sep = ""))
   modsGamma <- get.models(dredge(
     glm(f,
         family = Gamma(link = "log"), data = dataf, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
-  # Gaussian distribution
-  f1 <- as.formula(paste(variable.name, " ~ .", sep = ""))
-  modsGaussian <- get.models(dredge(
+  f1 <- as.formula(paste("newcol", " ~ .", sep = ""))
+  modsGamma1 <- get.models(dredge(
     glm(f1,
-        data = data, na.action = "na.fail")),
+        family = Gamma(link = "log"), data = dataf, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
-  # Gaussian with a log distribution
-  f2 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ .", sep = ""))
-  modsGaussianLog <- get.models(dredge(
+  # Gaussian distribution
+  f2 <- as.formula(paste(variable.name, " ~ Treatment * GrazeTime", sep = ""))
+  modsGaussian <- get.models(dredge(
     glm(f2,
         data = data, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
+  f3 <- as.formula(paste(variable.name, " ~ .", sep = ""))
+  modsGaussian1 <- get.models(dredge(
+    glm(f3,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  # Gaussian with a log distribution
+  f4 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ Treatment * GrazeTime", sep = ""))
+  modsGaussianLog <- get.models(dredge(
+    glm(f4,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  f5 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ .", sep = ""))
+  modsGaussianLog1 <- get.models(dredge(
+    glm(f5,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
   # summarize the 3 models in one list
-  combine <- list(modsGamma, modsGaussian, modsGaussianLog)
-  names(combine) <- c("Gamma", "Gaussian", "GaussianLog")
+  combine <- list(modsGamma, modsGamma1, modsGaussian, modsGaussian1,
+                  modsGaussianLog, modsGaussianLog1)
+  names(combine) <- c("Gamma TrtGrz", "Gamma All", "Gaussian TrtGrz", 
+                      "Gaussian All","Gaussian Log TrtGrz", "Gaussian Log All")
   
   # print QQPlots for the 3 models to determine which is the best fit
-  op <- par(mfrow = c(3,1))
-  qqnorm(resid(modsGamma[[1]]), main = "Gamma QQPlot")
+  op <- par(mfrow = c(2, 3))
+  qqnorm(resid(modsGamma[[1]]), main = "Gamma TrtGrz QQPlot")
   qqline(resid(modsGamma[[1]]))
-  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian QQPlot")
+  qqnorm(resid(modsGamma1[[1]]), main = "Gamma All  QQPlot")
+  qqline(resid(modsGamma1[[1]]))
+  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian TrtGrz QQPlot")
   qqline(resid(modsGaussian[[1]]))
-  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog QQPlot")
+  qqnorm(resid(modsGaussian1[[1]]), main = "Gaussian All QQPlot")
+  qqline(resid(modsGaussian1[[1]]))
+  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog TrtGrz QQPlot")
   qqline(resid(modsGaussianLog[[1]]))
+  qqnorm(resid(modsGaussianLog1[[1]]), main = "GaussianLog All QQPlot")
+  qqline(resid(modsGaussianLog1[[1]]))
   # return the list of model summaries
   return(combine)
 }
@@ -301,30 +365,47 @@ step4to5enz_zeroinfl <- function(data, variable.name) {
   # perform dredge function to find the best fitting model parameters
   data$Substrate <- NULL
   # Gaussian distribution
-  f1 <- as.formula(paste(variable.name, " ~ .", sep = ""))
+  f2 <- as.formula(paste(variable.name, " ~ Treatment * GrazeTime", sep = ""))
   modsGaussian <- get.models(dredge(
-    glm(f1,
-        data = data, na.action = "na.fail")),
-    subset = cumsum(weight) <= 0.95)[1]
-  # Gaussian with a log distribution
-  f2 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ .", sep = ""))
-  modsGaussianLog <- get.models(dredge(
     glm(f2,
         data = data, na.action = "na.fail")),
     subset = cumsum(weight) <= 0.95)[1]
+  f3 <- as.formula(paste(variable.name, " ~ .", sep = ""))
+  modsGaussian1 <- get.models(dredge(
+    glm(f3,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  # Gaussian with a log distribution
+  f4 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ Treatment * GrazeTime", sep = ""))
+  modsGaussianLog <- get.models(dredge(
+    glm(f4,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
+  f5 <- as.formula(paste( "log1p(", variable.name, ")",  " ~ .", sep = ""))
+  modsGaussianLog1 <- get.models(dredge(
+    glm(f5,
+        data = data, na.action = "na.fail")),
+    subset = cumsum(weight) <= 0.95)[1]
   # summarize the 3 models in one list
-  combine <- list( modsGaussian, modsGaussianLog)
-  names(combine) <- c("Gaussian", "GaussianLog")
+  combine <- list(modsGaussian, modsGaussian1,
+                  modsGaussianLog, modsGaussianLog1)
+  names(combine) <- c("Gaussian TrtGrz", 
+                      "Gaussian All","Gaussian Log TrtGrz", "Gaussian Log All")
   
-  # print QQPlots for the 2 models to determine which is the best fit
-  op <- par(mfrow = c(2,1))
-  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian QQPlot")
+  # print QQPlots for the 3 models to determine which is the best fit
+  op <- par(mfrow = c(2, 2))
+  qqnorm(resid(modsGaussian[[1]]), main = "Gaussian TrtGrz QQPlot")
   qqline(resid(modsGaussian[[1]]))
-  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog QQPlot")
+  qqnorm(resid(modsGaussian1[[1]]), main = "Gaussian All QQPlot")
+  qqline(resid(modsGaussian1[[1]]))
+  qqnorm(resid(modsGaussianLog[[1]]), main = "GaussianLog TrtGrz QQPlot")
   qqline(resid(modsGaussianLog[[1]]))
+  qqnorm(resid(modsGaussianLog1[[1]]), main = "GaussianLog All QQPlot")
+  qqline(resid(modsGaussianLog1[[1]]))
   # return the list of model summaries
   return(combine)
 }
+
 
 step6 <- function(bestModel) { # best Model is the call , make sure to replace data with the dataframe
   s <- summary(bestModel[[1]])
