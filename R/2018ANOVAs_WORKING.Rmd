@@ -430,12 +430,18 @@ Univariate analyses will be organized by subject, starting with 2018 data, then 
 
 *Steps for each analysis*  
 1. Use graphical exploratory data analysis (Gotelli and Ellison 2013). Plot the data to look for statistical outliers: use a boxplot where whiskers extend to 1.58% of the inter-quartile range.  
-2. Check for influential data points with influence.measures() function. Potential influential measures violate the assumptions of linear regression.
-3. Fit a linear regression model and test the assumptions of (1) homogeneity, (2) normality, and (3) independence. Following the methods of XXX, the statistical model validations will be done visually by inspecting: a residuals versus fitted values plot (checks homogeneity), a QQ plot (checks normality), and a residuals versus each explanatory variable (checks independence). 
-4. If the linear assumptions are met, run a basic generalized linear model with a Gaussian (normal) distribution and look for significance. Use a log transformation if it improves the model's AIC.
+
+2. Check for influential data points with influence.measures() function. Potential influential measures violate the assumptions of linear regression.  
+
+3. Fit a linear regression model and test the assumptions of (1) homogeneity, (2) normality, and (3) independence. Following the methods of XXX, the statistical model validations will be done visually by inspecting: a residuals versus fitted values plot (checks homogeneity), a QQ plot (checks normality), and a residuals versus each explanatory variable (checks independence).  
+
+4. If the linear assumptions are met, run a basic generalized linear model with a Gaussian (normal) distribution and look for significance. Use a log transformation if it improves the model's AIC.  
+
 4. If the assumptions of the linear regression are violated (as in the case of most of these datasets), fit a Gamma distribution with a log link and use the dredge() function to select the parameters with the lowest AIC. The Gamma distribution is used for positive continuous data that violates normality. The dredge() function will specify covariates, and we will use a log link as it is the most common and the easiest to back-transform.
-5. Examine the residuals of the best fitting model in a QQplot.
-6. When a best-fitting model is chosen, examine the confidence intervals and determine if confident intervals between explanatory variables overlap. If the CIs do not overlap, the variables are considered statistically significant from each other.
+5. Examine the residuals of the best fitting model in a QQplot.  
+
+6. When a best-fitting model is chosen, examine the confidence intervals and determine if confident intervals between explanatory variables overlap. If the CIs do not overlap, the variables are considered statistically significant from each other.  
+
   
 ### 2018 Data
 #### Gravimetric Moisture  
@@ -450,7 +456,7 @@ x <- step1to3(data = cn, variable.name = "grav_mois")
 y <- step4to5(data = cn, variable.name = "grav_mois")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel = glm(formula = log(grav_mois) ~ GrazeTime + NO3_mgkgdrysoil + 
+z <- step6(bestModel = glm(formula = log1p(grav_mois) ~ GrazeTime + NO3_mgkgdrysoil + 
     1, data = cn, na.action = "na.fail"))
 z
 ```
@@ -459,7 +465,7 @@ z
 #### Dissolved Organic Carbon (non-purgeable organic carbon)  
 
 Non-purgeable organic carbon (NPOC) is analyzed in the same way as dissolved organic carbon, except the carbonates are burnt off before analysis. This is the preferred method for soils that have a high pH and large amounts of inorganic carbon. Briefly, a 10g subsample of soil was extracted in 50mL 0.5M K~2~SO~4~ and filtered throuh Q50 Whatman filters. The extracts were analyzed for NPOC and DON via combustion catalytic oxidation/NDIR method (Shimadzu TOC-VCPH with TNM-1, Shimadzu Corporation).
-There is one influential measure, and the linear regression assumptions are met except for the fitted residuals, which show vertical patterns. The best fitting model based on AIC is the log-tranformed Gaussian distribution, which shows that the explanatory variables are Block, dissolved organic nitrogen, GrazeTime, and Treatment. However, examination of the confidence intervals shows a strong significance at Block 1, and the other variables don't seem significant to each other. The LO and NO treatment are significant from the Block and GrazeTime variables.
+There is one influential measure, and the linear regression assumptions are met except for the fitted residuals, which show vertical patterns. The best fitting model based on AIC is the log-tranformed Gaussian distribution, which shows that the explanatory variables are GrazeTime and Treatment. However, the Gaussian All model illustrates a strong block effect.
 
 This dataset shows that there is a strong block effect for the distribution of soil carbon, as well as an effect with GrazeTime and with Treatment. 
 ```{r, include = TRUE, collapse = TRUE, echo = FALSE, error = FALSE, warning = FALSE}
@@ -467,8 +473,8 @@ x <- step1to3(data = cn, variable.name = "NPOC_mgkgdrysoil")
 y <- step4to5(data = cn, variable.name = "NPOC_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel = glm(formula = log(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
-    GrazeTime + Treatment + 1, data = cn, na.action = "na.fail"))
+z <- step6(bestModel = glm(formula = log1p(NPOC_mgkgdrysoil) ~ GrazeTime + Treatment + 
+    1, data = cn, na.action = "na.fail"))
 z
 ```
 
@@ -486,7 +492,7 @@ y <- step4to5(data = cn, variable.name = "DON_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
 z <- step6(bestModel = glm(formula = log1p(DON_mgkgdrysoil) ~ mineralN_mgkgdrysoil + 
-                             NPOC_mgkgdrysoil + 1, data = cn, na.action = "na.fail"))
+    NPOC_mgkgdrysoil + 1, data = cn, na.action = "na.fail"))
 z
 
 ```
@@ -913,7 +919,7 @@ This is the first biogeochemical factor of both 2017 and 2018 data to suggest th
 
 ```{r}
 x <- step1to3(data = cn17, variable.name = "NPOC_mgkgdrysoil")
-y <- step4to5(data = cn17, variable.name = "NPOC_mgkgdrysoil")
+y <- step4to5zeroinfl(data = cn17, variable.name = "NPOC_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
 z <- step6(bestModel =glm(formula = log1p(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
@@ -1114,15 +1120,6 @@ ggplot(data = eff17, aes(x = GrazeTime, y = efficiency, color = Treatment)) +
   labs(x = "GrazeTime", y = "Microbial Efficiency") +
   facet_wrap(~ Substrate)
 
-# step 2: look for influential data points
-sub <- unique(eff17$Substrate)
-infl <- list()
-for(i in 1:length(sub)) {
-  infl <- c(infl, list(influence.measures(
-    lm(efficiency ~ Treatment * GrazeTime, data = filter(eff17, Substrate == sub[i])))))
-}
-names(infl) <- sub
-lapply(infl, summary)
 ```
 
 ##### AG
@@ -1460,15 +1457,6 @@ ggplot(data = enz.all, aes(x = GrazeTime, y = Enzyme_nm_g_hr, color = Treatment)
   labs(x = "GrazeTime", y = "Enzyme activity nm/g soil/hr") +
   facet_wrap(~ Substrate)
 
-# step 2: look for influential data points
-sub <- unique(enz.all$Substrate)
-infl <- list()
-for(i in 1:length(sub)) {
-  infl <- c(infl, list(influence.measures(
-    lm(Enzyme_nm_g_hr ~ Treatment * GrazeTime, data = filter(enz.all, Substrate == sub[i])))))
-}
-names(infl) <- sub
-lapply(infl, summary)
 ```
 
 ##### AG
