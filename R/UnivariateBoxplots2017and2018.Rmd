@@ -1,0 +1,384 @@
+---
+title: "Univariate Boxplots"
+author: "Emily Bean"
+date: "January 11, 2019"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+#### Author: Emily Bean  
+#### Author contact: ebean@uwyo.edu 
+
+```{r}
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/data/2017_2017_UnivariateData.R")
+```
+
+#### 2018 Data
+
+Based on visual data exploration, it seems that NPOC has an interaction with Treatment. Gravimetric moisture is heavily influenced by GrazeTime but there is not a treatment interaction. The other C and N data does not show an interaction with Treatment. The enzyme data is noisy and cluttered with outliers.
+
+```{r}
+## Gravimetric moisture
+ggplot(data = grav18, aes(x = GrazeTime, y = grav_mois)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Grav Moisture 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Graviemtric moisture")
+ggplot(data = grav18, aes(x = Treatment, y = grav_mois, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Grav Moisture 2018 Outliers") +
+  labs(x = "Treatment", y = "Graviemtric moisture")
+
+## NPOC
+ggplot(data = cn, aes(x = GrazeTime, y = NPOC_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NPOC 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NPOC mg/kg dry soil")
+ggplot(data = cn, aes(x = Treatment, y = NPOC_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NPOC 2018 Outliers") +
+  labs(x = "Treatment", y = "NPOC mg/kg dry soil")
+
+## DON
+ggplot(data = cn, aes(x = GrazeTime, y = DON_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("DON 2018 Outliers") +
+  labs(x = "GrazeTime", y = "DON mg/kg dry soil")
+ggplot(data = cn, aes(x = Treatment, y = DON_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("DON 2018 Outliers") +
+  labs(x = "Treatment", y = "DON mg/kg dry soil")
+
+## Nitrate
+ggplot(data = cn, aes(x = GrazeTime, y = NO3_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NO3 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NO3 mg/kg dry soil")
+ggplot(data = cn, aes(x = Treatment, y = NO3_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NO3 2018 Outliers") +
+  labs(x = "Treatment", y = "NO3 mg/kg dry soil")
+
+## Ammonium
+ggplot(data = cn, aes(x = GrazeTime, y = NH4_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NH4 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NH4 mg/kg dry soil")
+ggplot(data = cn, aes(x = Treatment, y = NH4_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NH4 2018 Outliers") +
+  labs(x = "Treatment", y = "NH4 mg/kg dry soil")
+
+## Mineral N
+ggplot(data = cn, aes(x = GrazeTime, y = mineralN_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("mineralN 2018 Outliers") +
+  labs(x = "GrazeTime", y = "mineralN mg/kg dry soil")
+ggplot(data = cn, aes(x = Treatment, y = mineralN_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("mineralN 2018 Outliers") +
+  labs(x = "Treatment", y = "mineralN mg/kg dry soil")
+
+## Enzymes - all substrates
+ggplot(data = enz, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = enz, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2018 Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+# remove the zero inflation
+test <- enz[!enz$Enzyme_nm_g_hr < 100,]
+ggplot(data = test, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2018 HIGH Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = test, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2018 HIGH Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+# remove the high outliers
+test1 <- enz[enz$Enzyme_nm_g_hr > 100, ]
+ggplot(data = test1, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2018 LOW Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = test1, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2018 LOW Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+
+
+## Vegetation biomass
+ggplot(data = veg, aes(x = GrazeTime, y = biomass_kg_plot)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Veg Biomass 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Veg Biomass kg/plot")
+ggplot(data = veg, aes(x = Treatment, y = biomass_kg_plot, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Veg Biomass 2018 Outliers") +
+  labs(x = "Treatment", y = "Veg Biomass kg/plot")
+
+## Forage Utilization
+# no GrazeTime 
+ggplot(data = for.ut18, aes(x = Treatment, y = forage_ut)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Forage Utilization 2018 Outliers") +
+  labs(x = "Treatment", y = "Forage Utilization")
+
+## Vegetation Recovery
+ggplot(data = veg.rec18, aes(x = Treatment, y = veg_rec)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Vegetation Recovery 2018 Outliers") +
+  labs(x = "Treatment", y = "Vegetation recovery")
+
+```
+
+### 2017 Data
+
+The 2017 data is more noisy and cluttered than the 2018 data because there are 5x as many observations. There don't seem to be any Treatment interactions, other than with the vegetation.
+
+```{r}
+## Gravimetric moisture
+ggplot(data = grav17, aes(x = GrazeTime, y = Gravmois)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Grav Moisture 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Graviemtric moisture")
+ggplot(data = grav17, aes(x = Treatment, y = Gravmois, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Grav Moisture 2017 Outliers") +
+  labs(x = "Treatment", y = "Graviemtric moisture")
+
+## NPOC
+ggplot(data = cn17, aes(x = GrazeTime, y = NPOC_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NPOC 2017 Outliers") +
+  labs(x = "GrazeTime", y = "NPOC mg/kg dry soil")
+ggplot(data = cn17, aes(x = Treatment, y = NPOC_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NPOC 2017 Outliers") +
+  labs(x = "Treatment", y = "NPOC mg/kg dry soil")
+
+## DON
+ggplot(data = cn17, aes(x = GrazeTime, y = DON_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("DON 2017 Outliers") +
+  labs(x = "GrazeTime", y = "DON mg/kg dry soil")
+ggplot(data = cn17, aes(x = Treatment, y = DON_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("DON 2017 Outliers") +
+  labs(x = "Treatment", y = "DON mg/kg dry soil")
+
+## Nitrate
+ggplot(data = cn17, aes(x = GrazeTime, y = NO3_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NO3 2017 Outliers") +
+  labs(x = "GrazeTime", y = "NO3 mg/kg dry soil")
+ggplot(data = cn17, aes(x = Treatment, y = NO3_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NO3 2017 Outliers") +
+  labs(x = "Treatment", y = "NO3 mg/kg dry soil")
+
+## Ammonium
+ggplot(data = cn17, aes(x = GrazeTime, y = NH4_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NH4 2017 Outliers") +
+  labs(x = "GrazeTime", y = "NH4 mg/kg dry soil")
+ggplot(data = cn17, aes(x = Treatment, y = NH4_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NH4 2017 Outliers") +
+  labs(x = "Treatment", y = "NH4 mg/kg dry soil")
+
+## Mineral N
+ggplot(data = cn17, aes(x = GrazeTime, y = mineralN_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("mineralN 2017 Outliers") +
+  labs(x = "GrazeTime", y = "mineralN mg/kg dry soil")
+ggplot(data = cn17, aes(x = Treatment, y = mineralN_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("mineralN 2017 Outliers") +
+  labs(x = "Treatment", y = "mineralN mg/kg dry soil")
+
+## Enzymes - all substrates
+ggplot(data = enz17, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = enz17, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2017 Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+# remove the zero inflation
+test3 <- enz17[!enz17$Enzyme_nm_g_hr < 100,]
+ggplot(data = test3, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2017 HIGH Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = test3, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2017 HIGH Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+# remove the high outliers
+test4 <- enz17[enz17$Enzyme_nm_g_hr > 100, ]
+ggplot(data = test4, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2017 LOW Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = test4, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2017 LOW Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+
+
+## Vegetation biomass
+ggplot(data = rpm17, aes(x = GrazeTime, y = biomass_kg_plot)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Veg Biomass 2017 Outliers") +
+  labs(x = "GrazeTime", y = "Veg Biomass kg/plot")
+ggplot(data = rpm17, aes(x = Treatment, y = biomass_kg_plot, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Veg Biomass 2017 Outliers") +
+  labs(x = "Treatment", y = "Veg Biomass kg/plot")
+
+## Forage Utilization
+# no GrazeTime 
+ggplot(data = for.ut17, aes(x = Treatment, y = forage_ut)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Forage Utilization 2017 Outliers") +
+  labs(x = "Treatment", y = "Forage Utilization")
+
+## Vegetation Recovery
+ggplot(data = veg.rec17, aes(x = Treatment, y = veg_rec)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Vegetation Recovery 2017 Outliers") +
+  labs(x = "Treatment", y = "Vegetation recovery")
+
+```
+
+#### 2017 and 2018 Data combined
+
+Combining the data doesn't get rid of any outliers, and it blurs any existing trends even more. 
+
+```{r}
+## Gravimetric moisture
+ggplot(data = grav.all, aes(x = GrazeTime, y = grav_mois)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Grav Moisture 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Graviemtric moisture")
+ggplot(data = grav.all, aes(x = Treatment, y = grav_mois, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Grav Moisture 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "Graviemtric moisture")
+
+## NPOC
+ggplot(data = cn.all, aes(x = GrazeTime, y = NPOC_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NPOC 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NPOC mg/kg dry soil")
+ggplot(data = cn.all, aes(x = Treatment, y = NPOC_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NPOC 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "NPOC mg/kg dry soil")
+
+## DON
+ggplot(data = cn.all, aes(x = GrazeTime, y = DON_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("DON 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "DON mg/kg dry soil")
+ggplot(data = cn.all, aes(x = Treatment, y = DON_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("DON 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "DON mg/kg dry soil")
+
+## Nitrate
+ggplot(data = cn.all, aes(x = GrazeTime, y = NO3_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NO3 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NO3 mg/kg dry soil")
+ggplot(data = cn.all, aes(x = Treatment, y = NO3_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NO3 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "NO3 mg/kg dry soil")
+
+## Ammonium
+ggplot(data = cn.all, aes(x = GrazeTime, y = NH4_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NH4 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "NH4 mg/kg dry soil")
+ggplot(data = cn.all, aes(x = Treatment, y = NH4_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("NH4 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "NH4 mg/kg dry soil")
+
+## Mineral N
+ggplot(data = cn.all, aes(x = GrazeTime, y = mineralN_mgkgdrysoil)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("mineralN 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "mineralN mg/kg dry soil")
+ggplot(data = cn.all, aes(x = Treatment, y = mineralN_mgkgdrysoil, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("mineralN 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "mineralN mg/kg dry soil")
+
+## Enzymes - all substrates
+ggplot(data = enz.all, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = enz.all, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+# remove the zero inflation
+test5 <- enz.all[!enz.all$Enzyme_nm_g_hr < 100,]
+ggplot(data = test5, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2017 & 2018 HIGH Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = test5, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2017 & 2018 HIGH Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+# remove the high outliers
+test6 <- enz.all[enz.all$Enzyme_nm_g_hr > 100, ]
+ggplot(data = test6, aes(x = GrazeTime, y = Enzyme_nm_g_hr)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzymes 2017 & 2018 LOW Outliers") +
+  labs(x = "GrazeTime", y = "Enzyme_nm_g_hr")
+ggplot(data = test6, aes(x = Treatment, y = Enzyme_nm_g_hr, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Enzyme_nm_g_hr 2017 & 2018 LOW Outliers") +
+  labs(x = "Treatment", y = "Enzyme_nm_g_hr mg/kg dry soil")
+
+
+## Vegetation biomass
+ggplot(data = veg.all, aes(x = GrazeTime, y = biomass_kg_plot)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Veg Biomass 2017 & 2018 Outliers") +
+  labs(x = "GrazeTime", y = "Veg Biomass kg/plot")
+ggplot(data = veg.all, aes(x = Treatment, y = biomass_kg_plot, color = GrazeTime)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Veg Biomass 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "Veg Biomass kg/plot")
+
+## Forage Utilization
+# no GrazeTime 
+ggplot(data = for.ut.all, aes(x = Treatment, y = forage_ut)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Forage Utilization 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "Forage Utilization")
+
+## Vegetation Recovery
+ggplot(data = veg.rec.all, aes(x = Treatment, y = veg_rec)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5) +
+  ggtitle("Vegetation Recovery 2017 & 2018 Outliers") +
+  labs(x = "Treatment", y = "Vegetation recovery")
+
+```
+
