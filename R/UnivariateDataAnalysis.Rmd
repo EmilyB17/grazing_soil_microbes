@@ -722,15 +722,23 @@ There are no potentially influential observations, and while there are a few out
 
 I am guessing that Block 4 is the problem child here, as there is missing data in plot 12 for time 4WK, and plot 12 is always a problem because of the spatial distribution of irrigation water that pools in plot 12.
 
+Removing block 4 makes the data fit the assumptions of the linear regression, so we can quickly run a repeated-measures ANOVA, and once GrazeTime is considered a repeated measure the Treatment loses significance.
+
 ```{r}
 veg$reading_rpm <- NULL
+veg <- veg[veg$Block %in% 1:3,]
+
 x <- step1to3(data = veg, variable.name = "biomass_kg_plot")
 y <- step4to5(data = veg, variable.name = "biomass_kg_plot")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel = glm(formula = log1p(biomass_kg_plot) ~ Block + Treatment + 1, 
+z <- step6(bestModel = glm(formula = log1p(biomass_kg_plot) ~ Treatment + 1, 
                            data = veg, na.action = "na.fail"))
 z
+
+# since log-transfomed meets linear regression assumptions, do ANOVA
+summary(aov(log1p(biomass_kg_plot) ~ Treatment*GrazeTime + Block + Error(biomass_kg_plot / GrazeTime), data = veg))
+
 ```
 
 #### Forage Utilization
@@ -771,6 +779,7 @@ qqline(resid(glm(formula = log1p(forage_ut) ~ 1, data = for.ut18, na.action = "n
 
 # summarize the best fit model
 summary(glm(formula = log1p(forage_ut) ~ 1, data = for.ut18, na.action = "na.fail"))
+
 
 
 ```
@@ -822,20 +831,75 @@ summary(glm(formula = veg_rec ~ 1, data = veg.rec18, na.action = "na.fail"))
 
 The sampling design in 2017's grazing trial was such that there are 240 total samples, 5 from each plot of each GrazeTime. The methods and procedures for the analyses are identical to 2018 methods unless otherwise noted.
 
+*1/25/19 update: to minimize psuedoreplication, the 5 replicates from each plot are averaged for a total of 1 averaged sample per plot, similar to 2018 data*
+```{r, echo = FALSE, include = FALSE}
+## Combining 2017 and 2018 data
+
+
+## cn and cn17
+grav18 <- cn[ , c("GrazeTime", "Block", "Treatment", "grav_mois")]
+cn$grav_mois <- NULL
+cn17$mineralN_mgkgdrysoil <- cn17$minN_mgkgdrysoil
+cn17$minN_mgkgdrysoil <- NULL
+unique(names(cn)) %in% unique(names(cn17))
+
+# average 2017 data by plot 
+
+cn17.avg <- data.frame(summarise(group_by(.data = cn17, Block, Treatment, GrazeTime),
+                                 NO3_mgkgdrysoil = mean(NO3_mgkgdrysoil, na.rm = TRUE),
+                                 NH4_mgkgdrysoil = mean(NH4_mgkgdrysoil, na.rm = TRUE),
+                                 NPOC_mgkgdrysoil = mean(NPOC_mgkgdrysoil, na.rm = TRUE),
+                                 DON_mgkgdrysoil = mean(DON_mgkgdrysoil, na.rm = TRUE),
+                                 mineralN_mgkgdrysoil = mean(mineralN_mgkgdrysoil, na.rm = TRUE)))
+cn.all <- rbind(cn17.avg, cn)
+
+## Gravimetric Moisture
+grav17.avg <- data.frame(summarise(group_by(.data = grav17, Block, Treatment, GrazeTime),
+                                   grav_mois = mean(Gravmois, na.rm = TRUE)))
+grav.all <- rbind(grav18, grav17.avg)
+
+## Enzymes
+enz17.avg <- data.frame(summarise(group_by(.data = enz17, Block, Treatment,
+                                           GrazeTime, Substrate),
+                                  Enzyme_nm_g_hr = mean(Enzyme_nm_g_hr, na.rm = TRUE)))
+enz.all <- rbind(enz17.avg, enz)
+
+## Veg Biomass
+veg$reading_rpm <- NULL
+veg17.avg <- data.frame(summarise(group_by(.data = rpm17, Block, Treatment, GrazeTime),
+                                  biomass_kg_plot = mean(biomass_kg_plot, na.rm = TRUE)))
+veg.all <- rbind(veg, veg17.avg)
+
+## Forage Utilization
+for.ut.all <- rbind(for.ut17, for.ut18)
+
+## Vegetation Recovery
+veg.rec.all <- rbind(veg.rec17, veg.rec18)
+
+
+```
+
 #### Gravimetric moisture  
 
 Data exploration shows several outliers and influential measures, which indicate a high level of environmental variability. None of the three possible models improve the distribution of the QQPlot, and the log-transformed Gaussian has the lowest AIC. It pulls GrazeTime and Treatment as the best explanatory variables. 
 This dataset is different than 2018 since none of the other biogeochemical factors are included. However, the AIC of the best fit model is 37 which is suitably low to fit well, even without the biogeochemical factors. 
 
 ```{r}
-x <- step1to3(data = grav17, variable.name = "Gravmois")
-y <- step4to5(data = grav17, variable.name = "Gravmois")
+x <- step1to3(data = grav17.avg, variable.name = "grav_mois")
+y <- step4to5(data = grav17.avg, variable.name = "grav_mois")
 y
 # make sure to change "data" to the dataframe
 z <- step6(bestModel = glm(formula = log1p(Gravmois) ~ GrazeTime + Treatment + 1, data = grav17, 
                            na.action = "na.fail")
 )
 z
+
+grav17.avg <- grav17.avg[grav17.avg$Block %in% 1:3,]
+# since this data fits assumptions of linear regression once log-transformed, do repeated-measures ANOVA
+summary(aov(log1p(grav_mois) ~ Treatment * GrazeTime + Block + Error(grav_mois / GrazeTime), data = grav17.avg))
+
+
+
 ```
 
 #### pH  
@@ -847,14 +911,20 @@ This ensures that pH is not affected by Treatment, and so we can assume changes 
 
 ```{r}
 
-x <- step1to3(data = ph17, variable.name = "pH")
-y <- step4to5(data = ph17, variable.name = "pH")
+
+ph17.avg <- data.frame(summarise(group_by(.data = ph17, Block, Treatment, GrazeTime),
+                                 pH = mean(pH, na.rm = TRUE)))
+
+x <- step1to3(data = ph17.avg, variable.name = "pH")
+ph17.avg <- ph17.avg[ph17.avg$Block %in% 1:3,]
+y <- step4to5(data = ph17.avg, variable.name = "pH")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel =glm(formula = pH ~ Block + GrazeTime + 1, family = Gamma(link = "log"), 
-                          data = ph17, na.action = "na.fail")
+z <- step6(bestModel =glm(formula = log1p(pH) ~ Block + 1, family = Gamma(link = "log"), 
+                          data = ph17.avg, na.action = "na.fail")
 )
 z
+
 
 ```
 
@@ -879,15 +949,17 @@ The three model selections all show QQplots with different curves, which suggest
 Anyways, the log-transformed Gaussian pulls Block, DON, GrazeTime, mineral N, and Nitrate as the best fitting explanatory variables. There is a strong block effect and the 4Wk GrazeTime is significantly lower than the other GrazeTimes. 
 
 ```{r}
-x <- step1to3(data = cn17, variable.name = "NH4_mgkgdrysoil")
-y <- step4to5(data = cn17, variable.name = "NH4_mgkgdrysoil")
+x <- step1to3(data = cn17.avg, variable.name = "NH4_mgkgdrysoil")
+y <- step4to5(data = cn17.avg, variable.name = "NH4_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel =glm(formula = log1p(NH4_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
-                            GrazeTime + minN_mgkgdrysoil + NO3_mgkgdrysoil + 1, data = cn17, 
+z <- step6(bestModel =glm(formula = log1p(NH4_mgkgdrysoil) ~ GrazeTime+ 1, data = cn17.avg, 
                           na.action = "na.fail")
 )
 z
+
+# try repeated-measures ANOVA since data normalizes decently with log transformation
+summary(aov(log1p(NH4_mgkgdrysoil) ~ Treatment*GrazeTime + Block + Error(log1p(NH4_mgkgdrysoil) / GrazeTime), data = cn17.avg))
 
 ```
 
@@ -899,15 +971,17 @@ Similarly to NH4, the QQplots all look awful and none of these models fit proper
 This follows similar trends as 2018 data, where biogeochemical factors are most influenced by each other. However, GrazeTime and Block seem to be integral drivers for the 2017 data.
 The Blocks and GrazeTimes have wider confidence intervals, which suggests a wide spread of variable data. There is a strong block effect and the 4WK GrazeTime is significantly lower than the other GrazeTimes.
 ```{r}
-x <- step1to3(data = cn17, variable.name = "minN_mgkgdrysoil")
-y <- step4to5(data = cn17, variable.name = "minN_mgkgdrysoil")
+x <- step1to3(data = cn17.avg, variable.name = "mineralN_mgkgdrysoil")
+y <- step4to5(data = cn17.avg, variable.name = "mineralN_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel =glm(formula = log1p(minN_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
-                            GrazeTime + NH4_mgkgdrysoil + NO3_mgkgdrysoil + 1, data = cn17, 
+z <- step6(bestModel =glm(formula = log1p(mineralN_mgkgdrysoil) ~ GrazeTime + 1, data = cn17.avg, 
                           na.action = "na.fail")
 )
 z
+
+# try repeated-measures ANOVA
+summary(aov(log1p(mineralN_mgkgdrysoil) ~ Treatment*GrazeTime + Block + Error(log1p(mineralN_mgkgdrysoil) / GrazeTime), data = cn17.avg))
 
 ```
 
@@ -918,15 +992,15 @@ NPOC shows a high amount of variability, but the data is close to fitting the as
 This is the first biogeochemical factor of both 2017 and 2018 data to suggest that Treatment is an influential driver. It seems that 
 
 ```{r}
-x <- step1to3(data = cn17, variable.name = "NPOC_mgkgdrysoil")
-y <- step4to5zeroinfl(data = cn17, variable.name = "NPOC_mgkgdrysoil")
+x <- step1to3(data = cn17.avg, variable.name = "NPOC_mgkgdrysoil")
+y <- step4to5zeroinfl(data = cn17.avg, variable.name = "NPOC_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel =glm(formula = log1p(NPOC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
-                            GrazeTime + minN_mgkgdrysoil + NH4_mgkgdrysoil + Treatment + 
-                            1, data = cn17, na.action = "na.fail")
+z <- step6(bestModel =glm(formula = log1p(NPOC_mgkgdrysoil) ~ GrazeTime +  Treatment + 
+                            1, data = cn17.avg, na.action = "na.fail")
 )
 z
+
 
 ```
 
@@ -937,15 +1011,19 @@ z
 Dissolved organic nitrogen fits the assumptions of a linear regression well, except that the outliers skew normality. If outliers were removed it would likely fit the model assumptions. The QQplots actually look better than most of the other variables, and the best explanatory variables for the log-transformed Gaussian are Block, GrazeTime, mineral N, NH4, NPOC, and Treatment.
 This is similar to the NPOC data, where the dredge() function pulled both GrazeTime and Treatment as explanatory variables. However, the effects are likely masked by the Block effect.
 ```{r}
-x <- step1to3(data = cn17, variable.name = "DON_mgkgdrysoil")
-y <- step4to5(data = cn17, variable.name = "DON_mgkgdrysoil")
+x <- step1to3(data = cn17.avg, variable.name = "DON_mgkgdrysoil")
+y <- step4to5(data = cn17.avg, variable.name = "DON_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel =glm(formula = log1p(DON_mgkgdrysoil) ~ Block + GrazeTime + minN_mgkgdrysoil + 
-                            NH4_mgkgdrysoil + NPOC_mgkgdrysoil + Treatment + 1, data = cn17, 
+z <- step6(bestModel =glm(formula = log1p(DON_mgkgdrysoil) ~ GrazeTime + 1, data = cn17.avg, 
                           na.action = "na.fail")
 )
 z
+
+# repeated-measures ANOVA
+summary(aov(log1p(DON_mgkgdrysoil) ~ Treatment*GrazeTime + Block + Error(log1p(DON_mgkgdrysoil) / GrazeTime), data = cn17.avg))
+
+
 
 ```
 
@@ -957,31 +1035,53 @@ Microbial biomass C was measured by fumigation-extraction (Horwath and Paul, 199
 The dataset shows that although the data is not heterscedastic, it is zero-inflated and would fit another model more appropriately than a linear regression. The data is too zero-inflated to run a Gamma distribution, and the Gaussian log-transformed has an AIC of 854, which is considerably higher than it should be if the model fits appropriately.
 However, the best explanatory variables are Block, DON, GrazeTime, MBN, and NPOC. This confirms that biogeochemical factors are influenced by each other, and GrazeTime likely explains trends as soil moisture fluctuates over the season.
 ```{r}
-x <- step1to3(data = mbc17, variable.name = "MBC_mgkgdrysoil")
-y <- step4to5zeroinfl(data = mbc17, variable.name = "MBC_mgkgdrysoil")
+# averaging MBC
+
+mbc.avg <- data.frame(summarise(group_by(.data = mbc17, Block, Treatment, GrazeTime),
+                                 MBC_mgkgdrysoil = mean(MBC_mgkgdrysoil, na.rm = TRUE),
+                                MBN_mgkgdrysoil = mean(MBN_mgkgdrysoil, na.rm = TRUE)))
+
+
+
+
+
+x <- step1to3(data = mbc.avg, variable.name = "MBC_mgkgdrysoil")
+mbc.avg <- mbc.avg[mbc.avg$Block %in% 1:3,]
+y <- step4to5zeroinfl(data = mbc.avg, variable.name = "MBC_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel =glm(formula = log1p(MBC_mgkgdrysoil) ~ Block + DON_mgkgdrysoil + 
-                            GrazeTime + MBN_mgkgdrysoil + NPOC_mgkgdrysoil + 1, data = mbc17, 
+z <- step6(bestModel =glm(formula = log1p(MBC_mgkgdrysoil) ~ GrazeTime + 1, data = mbc.avg, 
                           na.action = "na.fail")
 )
 z
+
+# repeated-measures ANOVA
+summary(aov(log1p(MBC_mgkgdrysoil) ~ Treatment * GrazeTime + Block + Error(log1p(MBC_mgkgdrysoil) / GrazeTime), data = mbc.avg))
+
 ```
 
 
 #### MBN  
 
 Microbial biomass N was only measured for 2017 samples. MBN is analyzed similarly to MBC, except with a standard k~ec~ of 0.54 (Brookes et al, 1985). In contrast to MBC, the MBN dataset is normally distributed and not zero-inflated, but the spread of fitted residuals is not ideal. The log-transformed Gaussian distribution fits considerably better than it fit the MBC data. The best fit variables are GrazeTime and MBC. Again, this illustrates that soil moisture throughout the 4 week sampling period likely has a larger influence on microbial variables than grazing.
+After removing block 4, a repeated-measures ANOVA indicates that Treatment is significant. However, a post-hoc paired bonferroni test does not indicate that any treatments are significant to each other at a level of 0.05.
 
 ```{r}
-x <- step1to3(data = mbc17, variable.name = "MBN_mgkgdrysoil")
-y <- step4to5zeroinfl(data = mbc17, variable.name = "MBN_mgkgdrysoil")
+x <- step1to3(data = mbc.avg, variable.name = "MBN_mgkgdrysoil")
+y <- step4to5zeroinfl(data = mbc.avg, variable.name = "MBN_mgkgdrysoil")
 y
 # make sure to change "data" to the dataframe
-z <- step6(bestModel =glm(formula = log1p(MBN_mgkgdrysoil) ~ GrazeTime + MBC_mgkgdrysoil + 
+z <- step6(bestModel =glm(formula = log1p(MBN_mgkgdrysoil) ~ GrazeTime + Treatment + 
                             1, data = mbc17, na.action = "na.fail")
 )
 z
+
+# repeated-measures ANOVA
+summary(aov(log1p(MBN_mgkgdrysoil) ~ Treatment * GrazeTime + Block + Error(log1p(MBN_mgkgdrysoil) / GrazeTime), data = mbc.avg))
+
+# paired bonferroni test as post-hoc
+with(mbc.avg, pairwise.t.test(log1p(MBC_mgkgdrysoil), Treatment, p.adjust.method = "bonferroni", paired = TRUE))
+# this doesn't show any significance
 
 ```
 
@@ -1218,35 +1318,22 @@ y
 
 During 2017 data collection, not enough traditional clipped biomass was collected to have an acceptable regression between RPM readings and clipped biomass. The 2018 regression line is used to convert RPM readings to kg dry biomass per plot. 
 This dataset has one potentially influential observation, and the selected model shows that Treatment is a significant factor. HI and LO are significant to NO. This suggests that HI recovered faster than LO and NO.
+After Block 4 is removed, the log-transformed Gaussian GLM shows significance with GrazeTime. However, a repeated-measures ANOVA does not show significance.
 ```{r}
-# step 1: look for outliers with a boxplot
-ggplot(data = veg.rec17, aes(x = Treatment, y = veg_rec, color = Treatment)) +
-  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
-  ggtitle("Vegetation Recovery 2017 Outliers") +
-  labs(x = "Treatment", y = "Vegetation Recovery")
 
+veg17.avg <- veg17.avg[veg17.avg$Block %in% 1:3,]
 
-# step 2: check for influential data points
-summary(influence.measures(lm(veg_rec ~ Treatment, data = veg.rec17)))
+x <- step1to3(data = veg17.avg, variable.name = "biomass_kg_plot")
+y <- step4to5(data = veg17.avg, variable.name = "biomass_kg_plot")
+y
+# make sure to change "data" to the dataframe
+z <- step6(bestModel = glm(formula = log1p(biomass_kg_plot) ~ GrazeTime + 1, data = veg17.avg, 
+                           na.action = "na.fail"))
+z
 
-# step 3: fit regression and look for violations of assumptions
+# since log-transfomed meets linear regression assumptions, do ANOVA
+summary(aov(log1p(biomass_kg_plot) ~ Treatment*GrazeTime + Block + Error(log1p(biomass_kg_plot) / GrazeTime), data = veg17.avg))
 
-# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
-op <- par(mfrow = c(1,1), mar = c(5, 4, 1, 2))
-plot(lm(veg_rec ~ Treatment, data = veg.rec18), add.smooth = FALSE, which = 1)
-qqnorm(veg.rec17$veg_rec)
-qqline(veg.rec17$veg_rec)
-
-# fit a Gaussian (normal) distribution 
-(get.models(dredge(glm(veg_rec ~ Treatment, data = veg.rec17, na.action = "na.fail")),
-            subset = cumsum(weight) <= 0.95))[1]
-
-# check the normality of the residuals with a QQplot
-qqnorm(resid(glm(formula = veg_rec ~ 1, data = veg.rec17, na.action = "na.fail")))
-qqline(resid(glm(formula = veg_rec ~ 1, data = veg.rec17, na.action = "na.fail")))
-
-# summarize the best fit model
-summary(glm(formula = veg_rec ~ Treatment + 1, data = veg.rec17, na.action = "na.fail"))
 ```
 
 #### Forage Utilization
@@ -1285,57 +1372,46 @@ summary(glm(formula = log1p(forage_ut) ~ 1, data = for.ut17, na.action = "na.fai
 
 ```
 
+##### Vegetation Recovery
+
+```{r}
+# step 1: look for outliers with a boxplot
+ggplot(data = veg.rec17, aes(x = Treatment, y = veg_rec, color = Treatment)) +
+  geom_boxplot(outlier.colour = "black", outlier.size = 5, position = "dodge") +
+  ggtitle("Vegetation Recovery 2017 Outliers") +
+  labs(x = "Treatment", y = "Vegetation Recovery")
+
+
+# step 2: check for influential data points
+summary(influence.measures(lm(veg_rec ~ Treatment, data = veg.rec17)))
+
+# step 3: fit regression and look for violations of assumptions
+
+# Standard model validation graphs: 1. residuals vs fitted values (test homogeneity), 2. QQplot  (test normality), 3. residuals vs each explanatory variable (test independence)
+op <- par(mfrow = c(1,1), mar = c(5, 4, 1, 2))
+plot(lm(veg_rec ~ Treatment, data = veg.rec18), add.smooth = FALSE, which = 1)
+qqnorm(veg.rec17$veg_rec)
+qqline(veg.rec17$veg_rec)
+
+# fit a Gaussian (normal) distribution 
+(get.models(dredge(glm(veg_rec ~ Treatment, data = veg.rec17, na.action = "na.fail")),
+            subset = cumsum(weight) <= 0.95))[1]
+
+# check the normality of the residuals with a QQplot
+qqnorm(resid(glm(formula = veg_rec ~ 1, data = veg.rec17, na.action = "na.fail")))
+qqline(resid(glm(formula = veg_rec ~ 1, data = veg.rec17, na.action = "na.fail")))
+
+# summarize the best fit model
+summary(glm(formula = veg_rec ~ Treatment + 1, data = veg.rec17, na.action = "na.fail"))
+```
+
+
 
 ### 2018 and 2017 Combined Data
 
 These analyses will be repeated on each inidividual univariate parameter, with combined 2018 and 2017 data. The 2017 data will be averaged by plot to match the n of the 2018 data.
 
-```{r, echo = FALSE, include = FALSE}
-## Combining 2017 and 2018 data
 
-
-## cn and cn17
-grav18 <- cn[ , c("GrazeTime", "Block", "Treatment", "grav_mois")]
-cn$grav_mois <- NULL
-cn17$mineralN_mgkgdrysoil <- cn17$minN_mgkgdrysoil
-cn17$minN_mgkgdrysoil <- NULL
-unique(names(cn)) %in% unique(names(cn17))
-
-# average 2017 data by plot 
-
-cn17.avg <- data.frame(summarise(group_by(.data = cn17, Block, Treatment, GrazeTime),
-                                 NO3_mgkgdrysoil = mean(NO3_mgkgdrysoil, na.rm = TRUE),
-                                 NH4_mgkgdrysoil = mean(NH4_mgkgdrysoil, na.rm = TRUE),
-                                 NPOC_mgkgdrysoil = mean(NPOC_mgkgdrysoil, na.rm = TRUE),
-                                 DON_mgkgdrysoil = mean(DON_mgkgdrysoil, na.rm = TRUE),
-                                 mineralN_mgkgdrysoil = mean(mineralN_mgkgdrysoil, na.rm = TRUE)))
-cn.all <- rbind(cn17.avg, cn)
-
-## Gravimetric Moisture
-grav17.avg <- data.frame(summarise(group_by(.data = grav17, Block, Treatment, GrazeTime),
-                                   grav_mois = mean(Gravmois, na.rm = TRUE)))
-grav.all <- rbind(grav18, grav17.avg)
-
-## Enzymes
-enz17.avg <- data.frame(summarise(group_by(.data = enz17, Block, Treatment,
-                                           GrazeTime, Substrate),
-                                  Enzyme_nm_g_hr = mean(Enzyme_nm_g_hr, na.rm = TRUE)))
-enz.all <- rbind(enz17.avg, enz)
-
-## Veg Biomass
-veg$reading_rpm <- NULL
-veg17.avg <- data.frame(summarise(group_by(.data = rpm17, Block, Treatment, GrazeTime),
-                                  biomass_kg_plot = mean(biomass_kg_plot, na.rm = TRUE)))
-veg.all <- rbind(veg, veg17.avg)
-
-## Forage Utilization
-for.ut.all <- rbind(for.ut17, for.ut18)
-
-## Vegetation Recovery
-veg.rec.all <- rbind(veg.rec17, veg.rec18)
-
-
-```
 #### Gravimetric Moisture
 
 There are no potentially influential ovservations, and the QQplot shows that after transformation the data will likely appropriately fit a linear regression. The log-transformed Gaussian pulls GrazeTime as the best explanatory variable, confirming that gravimetric moisture is driven more by seasonality than treatment.
