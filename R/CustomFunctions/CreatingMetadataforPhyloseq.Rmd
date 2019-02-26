@@ -1,0 +1,57 @@
+---
+title: "Creating a metadata file for Phyloseq analysis"
+output: html_notebook
+---
+
+Authors: Emily Bean & Shannon Albeke  
+Author contact: ebean@uwyo.edu  
+
+Modify this code as needed to fit the parameters of your own data. This workflow assumes that you have multiple dataframes with shared identifying columns. The first function will average the dataframe variables and the second function will perform the `myMean` function on a list of dataframes and combine them into one. 
+
+**myMean function:**  
+Arguments:  
+1. `df` dataframe  
+2. `keep` columns that will be kept as is (i.e. Plot, Treatment)  
+3. `kill` columns that will be removed/averaged (i.e. average Plot by Sample)  
+
+The function makes the data vertical, groups by the "keep" variables, and returns a horizontal dataframe averaged by the "kill" variables. 
+
+```{r}
+myMean<- function(df, keep, kill) {
+  vert <- df %>% 
+    select(-kill) %>% # remove the columns that you don't want 
+    gather(key = "Param", value = "Value", names(df)[which(!names(df) %in% keep)]) %>% # gather by columns you do want
+    group_by(Plot, Block, GrazeTime, Treatment, Param) %>%  # group by columns you want to keep
+    summarize(MeanValue = mean(Value, na.rm = TRUE)) %>% # summarize by average
+    spread(key = Param, value = MeanValue) # make horizontal again
+  return(vert)
+}
+```
+
+**Function to average & merge multiple dataframes:** 
+
+The function `joinLoop` pulls the `myMean` function to average each dataframe in a list, and then combine the dataframes. Can be any number of dataframes.
+Arguments:  
+1. `dfs` list of dataframes to average and combine
+2. `keep` column names to keep the same (identifying columns between dataframes)
+3. `kill` column names that will be removed/averaged
+```{r}
+# create empty dataframe to store output
+outDF<- data.frame()
+
+# define the function
+joinLoop <- function(dfs, keep, kill){
+  
+  for(i in 1:length(dfs)){
+  # Get mean values of current data.frame
+    d<- myMean(df = dfs[[i]], keep = keep, kill = kill)
+  # Now join with existing table
+    ifelse(nrow(outDF) == 0, 
+         outDF<- d, 
+         outDF<- outDF %>% left_join(d, by = c("Plot", "Block", "Treatment", "GrazeTime")))
+  }
+  return(outDF)
+}
+
+```
+
