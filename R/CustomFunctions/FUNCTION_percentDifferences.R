@@ -1,7 +1,5 @@
 ### FUNCTION to calculate percent differences for a time series 
 
-
-
 require(tidyverse)
 
 percentDifferences <- function(df, ids, timeKey, timeLevels, level1) {
@@ -25,7 +23,7 @@ percentDifferences <- function(df, ids, timeKey, timeLevels, level1) {
   #make output DF for loop
   outDF1 <- outDF %>% select(idsNoTimeKey, Param)
   # for loop to iterate through levels and calculate % difference
-  for(i in 6:ncol(outDF)) {
+  for(i in unique(which(colnames(outDF) %in% timeLevels))) {
     # create vector of the % change
     d <- ((outDF[i] - fixZeros) / fixZeros) * 100
     colnames(d) <- paste("diff", names(d), sep = "_")
