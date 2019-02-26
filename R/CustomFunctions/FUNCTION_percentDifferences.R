@@ -1,5 +1,6 @@
 ### FUNCTION to calculate percent differences for a time series 
 
+
 require(tidyverse)
 
 percentDifferences <- function(df, ids, timeKey, timeLevels, level1) {
@@ -13,17 +14,19 @@ percentDifferences <- function(df, ids, timeKey, timeLevels, level1) {
   # create new dataframe, collect data into vertical
   outDF <- df %>% 
     gather(key = "Param", value = "Value",
-         names(df[which(!names(df) %in% ids)])) %>%
+           names(df[which(!names(df) %in% ids)])) %>%
     # spread GrazeTime to be horizontal
     spread(key = timeKey, value = Value)
   # make zeros into small numbers so we can divide by "zero"
   fixZeros <- outDF[names(outDF) %in% level1] + 0.000001
   # create new vector of IDs without timeKey column
   idsNoTimeKey <- if(timeKey %in% ids) {ids[-grep(timeKey, ids)]}
+  # create a new vector of TimeLevels without level1
+  timeLevelsNo1 <- if(level1 %in% timeLevels) {timeLevels[-grep(level1, timeLevels)]}
   #make output DF for loop
   outDF1 <- outDF %>% select(idsNoTimeKey, Param)
   # for loop to iterate through levels and calculate % difference
-  for(i in unique(which(colnames(outDF) %in% timeLevels))) {
+  for(i in unique(which(colnames(outDF) %in% timeLevelsNo1))) {
     # create vector of the % change
     d <- ((outDF[i] - fixZeros) / fixZeros) * 100
     colnames(d) <- paste("diff", names(d), sep = "_")
@@ -37,10 +40,10 @@ percentDifferences <- function(df, ids, timeKey, timeLevels, level1) {
     select(-timeLevels) %>% 
     # join with output from the loop
     left_join(outDF1, by = c(idsNoTimeKey, "Param")) 
-    # make GrazeTime vertical again
-   respread <- respread %>%  gather(key = "diffTimeSeries", value = "diff",
-           names(respread[which(names(respread) %in% diffnames)]))
-    # spread the data back to original horizontal axis
+  # make GrazeTime vertical again
+  respread <- respread %>%  gather(key = "diffTimeSeries", value = "diff",
+                                   names(respread[which(names(respread) %in% diffnames)]))
+  # spread the data back to original horizontal axis
   respread1 <- respread %>% 
     spread(key = Param, value = diff) 
   # make diffTimeSeries a factor again for easier analysis
@@ -48,6 +51,7 @@ percentDifferences <- function(df, ids, timeKey, timeLevels, level1) {
   # return the respread dataframe
   return(respread1)
 }
+
 
 
 
