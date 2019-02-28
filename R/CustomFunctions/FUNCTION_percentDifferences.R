@@ -24,7 +24,7 @@ percentDifferences <- function(df, ids, timeKey, timeLevels, level1) {
   # create a new vector of TimeLevels without level1
   timeLevelsNo1 <- if(level1 %in% timeLevels) {timeLevels[-grep(level1, timeLevels)]}
   #make output DF for loop
-  outDF1 <- outDF %>% select(idsNoTimeKey, Param)
+  outDF1 <- outDF %>% dplyr::select(idsNoTimeKey, Param)
   # for loop to iterate through levels and calculate % difference
   for(i in unique(which(colnames(outDF) %in% timeLevelsNo1))) {
     # create vector of the % change
@@ -37,7 +37,7 @@ percentDifferences <- function(df, ids, timeKey, timeLevels, level1) {
   diffnames <- grep("diff", colnames(outDF1), value = TRUE)
   # create new dataframe, remove old GrazeTime columns
   respread <- outDF %>% 
-    select(-timeLevels) %>% 
+    dplyr::select(-timeLevels) %>% 
     # join with output from the loop
     left_join(outDF1, by = c(idsNoTimeKey, "Param")) 
   # make GrazeTime vertical again
