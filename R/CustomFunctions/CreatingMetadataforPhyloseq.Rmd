@@ -3,7 +3,7 @@ title: "Creating a metadata file for Phyloseq analysis"
 output: html_notebook
 ---
 
-Authors: Emily Bean & Shannon Albeke  
+Authors: Emily Bean, Shannon Albeke  
 Author contact: ebean@uwyo.edu  
 
 Modify this code as needed to fit the parameters of your own data. This workflow assumes that you have multiple dataframes with shared identifying columns. The first function will average the dataframe variables and the second function will perform the `myMean` function on a list of dataframes and combine them into one. 
@@ -16,10 +16,12 @@ Arguments:
 
 The function makes the data vertical, groups by the "keep" variables, and returns a horizontal dataframe averaged by the "kill" variables. 
 
+
 ```{r}
+
 myMean<- function(df, keep, kill) {
   vert <- df %>% 
-    select(-kill) %>% # remove the columns that you don't want 
+    dplyr::select(-kill) %>% # remove the columns that you don't want 
     gather(key = "Param", value = "Value", names(df)[which(!names(df) %in% keep)]) %>% # gather by columns you do want
     group_by(Plot, Block, GrazeTime, Treatment, Param) %>%  # group by columns you want to keep
     summarize(MeanValue = mean(Value, na.rm = TRUE)) %>% # summarize by average
