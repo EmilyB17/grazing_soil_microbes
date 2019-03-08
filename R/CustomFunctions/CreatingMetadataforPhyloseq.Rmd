@@ -3,8 +3,6 @@ title: "Creating a metadata file for Phyloseq analysis"
 output: html_notebook
 ---
 
-Authors: Emily Bean, Shannon Albeke  
-Author contact: ebean@uwyo.edu  
 
 Modify this code as needed to fit the parameters of your own data. This workflow assumes that you have multiple dataframes with shared identifying columns. The first function will average the dataframe variables and the second function will perform the `myMean` function on a list of dataframes and combine them into one. 
 
