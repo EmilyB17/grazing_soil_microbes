@@ -1,0 +1,565 @@
+---
+title: "Metabarcoding Alpha Diversity Analysis"
+author: "Emily Bean"
+date: "April 8, 2019"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warnings = FALSE)
+# we don't want to display code (echo), warnings (warnings), or the chunk (include) in the output
+```
+
+```{r}
+## Reading in packages and data
+if(!require(prettydoc)) install.packages("prettydoc")
+library(prettydoc)
+if(!require(ggplot2)) install.packages("ggplot2")
+library(ggplot2)
+if(!require(tidyverse)) install.packages("tidyverse")
+library(tidyverse)
+if(!require(tidyverse)) install.packages("emmeans")
+library(emmeans)
+if(!require(qpcR)) install.packages("qpcR")
+library(qpcR)
+# 2017 ITS
+alphadiv2017ITS <- read.table(file = "//petalibrary.arcc.uwyo.edu/homes/lvandiep/SoilEcologyLab/Students/Bean/HTS/alphaITS2017_NOBLOCK4.txt", header = TRUE, sep = "\t") %>% 
+  dplyr::select(-c(ID, se.chao1, se.ACE)) %>% 
+  gather(key = "Param", value = "value",
+         Observed, Chao1, ACE, Shannon, Simpson, InvSimpson, Fisher)
+# 2018 16S
+alphadiv201816S <- read.table(file = "//petalibrary.arcc.uwyo.edu/homes/lvandiep/SoilEcologyLab/Students/Bean/HTS/alpha_16S2018NOBLOCK4.txt", header = TRUE, sep = "\t") %>% 
+  mutate(
+         soil_type = case_when(
+           soil_type %in% "all" ~ "combined",
+           soil_type %in% "rhiz" ~ "rhizo",
+           soil_type %in% "bulk" ~ "bulk"
+         )) %>% 
+  dplyr::select(-c(ID, se.chao1, se.ACE)) %>% 
+    gather(key = "Param", value = "value",
+         Observed, Chao1, ACE, Shannon, Simpson, InvSimpson, Fisher)
+# 2017 16S
+alphadiv201716S <- read.table(file = "//petalibrary.arcc.uwyo.edu/homes/lvandiep/SoilEcologyLab/Students/Bean/HTS/alphadiv_16S2017_NOBLOCK4.txt", header = TRUE, sep = "\t") %>% 
+  mutate(
+         soil_type = case_when(
+           type %in% "combined_bulk_rhizo" ~ "combined",
+           type %in% "bulk" ~ "bulk",
+           type %in% "rhizo" ~ "rhizo"
+         ),
+         type = NULL)  %>% 
+  dplyr::select(-c(ID, se.chao1, se.ACE)) %>% 
+    gather(key = "Param", value = "value",
+         Observed, Chao1, ACE, Shannon, Simpson, InvSimpson, Fisher)
+
+# combine and gather to vertical
+all16S <- rbind(alphadiv201716S, alphadiv201816S) %>% 
+  gather(key = "Param", value = "value",
+         Observed, Chao1, ACE, Shannon, Simpson, InvSimpson, Fisher)
+
+```
+
+```{r}
+# function to check assumptions of linear regression
+myLinReg <- function(par) {
+  p1 <- hist(all$value[all$Param == par], 
+             main = paste("Hist", par, sep = ": "),
+             xlab = as.character(par))
+  
+  p2 <- qqnorm(all$value[all$Param == par], 
+               main = paste("QQPlot", par, sep = ": "))
+  p3 <- qqline(all$value[all$Param == par], col = "red")
+  
+  p4 <- boxplot(all$value[all$Param == par] ~ 
+                  all$GrazeTime[all$Param == par], data = all,
+                main = paste("Boxplot vs GrazeTime", par, sep = ": "))
+  p5 <- boxplot(all$value[all$Param == par] ~ 
+                  all$Treatment[all$Param == par], data = all,
+                main = paste("Boxplot vs Treatment", par, sep = ": "))
+  
+  return(list(p1, p2, p3, p4, p5))
+}
+```
+
+####Alpha diversity analysis
+
+1. Check assumptions of linear regression and normalize data as much as possible
+2. GLM structure similar to univariate data: raw numbers instead of % difference from PRE
+3. Plot any parameters that the GLM indicates are significant (p < 0.05)
+4. 16S data is analyzed (1) bulk only, (2) rhizospheric only, (3) rhizospheric and bulk combined. The 16S data had more reads in the bulk soil than rhizospheric so rareficiation 
+
+*Overall, only 16S rhizospheric samples from 2018 have any significance, and only with one alpha diversity metric at one time*
+
+
+```{#r}
+# Checking assumptions of linear regression - don't print
+pars <- unique(all$Param)
+yrs <- unique(all$year)
+stype <- unique(all$soil_type)
+seq <- unique(all$seq)
+
+graphics.off()
+for(j in 1:length(yrs)){
+  for(n in 1:length(seq)) {
+    for(m in 1:length(stype)) {
+      for(i in 1:length(pars)){
+       
+        
+          par(mfrow = c(2,2)) 
+          print(myLinReg(par = pars[i]))
+          dev.off
+        
+      }
+    }
+  }
+}
+  
+# the data shows significant kurtosis, which is not able to be easily transformed
+```
+
+##### ITS 2017: Only the Simpson index is significant at HDG between 1WK and 4WK
+
+```{r}
+
+# create empty data frames to fill in the loop
+posthoc1 <- data.frame()
+posthoc2 <- data.frame()
+modelFit <- data.frame()
+
+# GLM loop 
+
+pars <- unique(alphadiv2017ITS$Param)
+      for(i in 1:length(pars)){
+        
+        
+        
+        mod <- glm(value ~ GrazeTime * Treatment,
+                   data = filter(alphadiv2017ITS, Param == pars[i]),
+                   family = gaussian(link = "identity"))
+        mf <- data.frame(Param = as.character(pars[i]),
+                         deviance = mod$deviance,
+                         null.deviance = mod$null.deviance,
+                         diff = mod$null.deviance - mod$deviance,
+                         df.null = mod$df.null,
+                         df.dev = mod$df.residual,
+                         rmse = round(RMSE(mod), 4))
+        modelFit <- rbind(mf, modelFit)
+        e <- as.data.frame(
+          emmeans(mod, pairwise ~ Treatment | GrazeTime, type = "response"))
+        df <- e %>% dplyr::select(c(contrasts.contrast, contrasts.GrazeTime,
+                                    contrasts.SE, contrasts.z.ratio, 
+                                    contrasts.p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc1 <- rbind(df, posthoc1)
+        e2 <- emmeans(mod, pairwise ~ GrazeTime | Treatment, type = "response")
+        e2 <- as.data.frame(e2$contrasts)
+        df1 <- e2 %>% dplyr::select(c(contrast, Treatment,
+                                      SE, z.ratio, 
+                                      p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc2 <- rbind(df1, posthoc2)
+        
+        
+      }
+    
+# clean up the model outputs for further analysis
+colnames(posthoc1) <- c("contrast", "contTS.Trt", "SE", "z.ratio", 
+                        "p.value", "Parameter")
+posthoc1$sign <- ifelse(posthoc1$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+colnames(posthoc2) <- c("contrast", "contTS.Trt", "SE", "z.ratio",
+                        "p.value", "Parameter")
+posthoc2$sign <- ifelse(posthoc2$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+# what is significant?
+sig.TSITS <- posthoc1[which(posthoc1$sign %in% "significant"),]
+sig.TrtITS <- posthoc2[which(posthoc2$sign %in% "significant"),]
+
+outallITS <- rbind(posthoc1, posthoc2)
+```
+##### 16S 2018 bulk & rhizospheric combined- no significance
+
+```{r}
+a16S2017 <- alphadiv201716S[alphadiv201716S$soil_type %in% "combined",]
+
+# create empty data frames to fill in the loop
+posthoc1 <- data.frame()
+posthoc2 <- data.frame()
+modelFit <- data.frame()
+
+# GLM loop 
+
+pars <- unique(a16S2017$Param)
+      for(i in 1:length(pars)){
+        
+        
+        
+        mod <- glm(value ~ GrazeTime * Treatment,
+                   data = filter(a16S2017, Param == pars[i]),
+                   family = gaussian(link = "identity"))
+        mf <- data.frame(Param = as.character(pars[i]),
+                         deviance = mod$deviance,
+                         null.deviance = mod$null.deviance,
+                         diff = mod$null.deviance - mod$deviance,
+                         df.null = mod$df.null,
+                         df.dev = mod$df.residual,
+                         rmse = round(RMSE(mod), 4))
+        modelFit <- rbind(mf, modelFit)
+        e <- as.data.frame(
+          emmeans(mod, pairwise ~ Treatment | GrazeTime, type = "response"))
+        df <- e %>% dplyr::select(c(contrasts.contrast, contrasts.GrazeTime,
+                                    contrasts.SE, contrasts.z.ratio, 
+                                    contrasts.p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc1 <- rbind(df, posthoc1)
+        e2 <- emmeans(mod, pairwise ~ GrazeTime | Treatment, type = "response")
+        e2 <- as.data.frame(e2$contrasts)
+        df1 <- e2 %>% dplyr::select(c(contrast, Treatment,
+                                      SE, z.ratio, 
+                                      p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc2 <- rbind(df1, posthoc2)
+        
+        
+      }
+    
+# clean up the model outputs for further analysis
+colnames(posthoc1) <- c("contrast", "contTS.Trt", "SE", "z.ratio", 
+                        "p.value", "Parameter")
+posthoc1$sign <- ifelse(posthoc1$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+colnames(posthoc2) <- c("contrast", "contTS.Trt", "SE", "z.ratio",
+                        "p.value", "Parameter")
+posthoc2$sign <- ifelse(posthoc2$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+# what is significant?
+sig.TS16S17 <- posthoc1[which(posthoc1$sign %in% "significant"),]
+sig.Trt16S17 <- posthoc2[which(posthoc2$sign %in% "significant"),]
+
+outall16S17 <- rbind(posthoc1, posthoc2)
+```
+##### 16S 2017 - bulk - no significance
+
+```{r}
+b16S2017 <- alphadiv201716S[alphadiv201716S$soil_type %in% "bulk",]
+
+# create empty data frames to fill in the loop
+posthoc1 <- data.frame()
+posthoc2 <- data.frame()
+modelFit <- data.frame()
+
+# GLM loop 
+
+pars <- unique(b16S2017$Param)
+      for(i in 1:length(pars)){
+        
+        
+        
+        mod <- glm(value ~ GrazeTime * Treatment,
+                   data = filter(b16S2017, Param == pars[i]),
+                   family = gaussian(link = "identity"))
+        mf <- data.frame(Param = as.character(pars[i]),
+                         deviance = mod$deviance,
+                         null.deviance = mod$null.deviance,
+                         diff = mod$null.deviance - mod$deviance,
+                         df.null = mod$df.null,
+                         df.dev = mod$df.residual,
+                         rmse = round(RMSE(mod), 4))
+        modelFit <- rbind(mf, modelFit)
+        e <- as.data.frame(
+          emmeans(mod, pairwise ~ Treatment | GrazeTime, type = "response"))
+        df <- e %>% dplyr::select(c(contrasts.contrast, contrasts.GrazeTime,
+                                    contrasts.SE, contrasts.z.ratio, 
+                                    contrasts.p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc1 <- rbind(df, posthoc1)
+        e2 <- emmeans(mod, pairwise ~ GrazeTime | Treatment, type = "response")
+        e2 <- as.data.frame(e2$contrasts)
+        df1 <- e2 %>% dplyr::select(c(contrast, Treatment,
+                                      SE, z.ratio, 
+                                      p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc2 <- rbind(df1, posthoc2)
+        
+        
+      }
+    
+# clean up the model outputs for further analysis
+colnames(posthoc1) <- c("contrast", "contTS.Trt", "SE", "z.ratio", 
+                        "p.value", "Parameter")
+posthoc1$sign <- ifelse(posthoc1$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+colnames(posthoc2) <- c("contrast", "contTS.Trt", "SE", "z.ratio",
+                        "p.value", "Parameter")
+posthoc2$sign <- ifelse(posthoc2$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+# what is significant?
+sig.TS16S17B <- posthoc1[which(posthoc1$sign %in% "significant"),]
+sig.Trt16S17B <- posthoc2[which(posthoc2$sign %in% "significant"),]
+
+outall16S17B <- rbind(posthoc1, posthoc2)
+```
+
+##### 16S 2017 Rhizospheric - no significance
+```{r}
+r16S2017 <- alphadiv201716S[alphadiv201716S$soil_type %in% "rhizo",]
+
+# create empty data frames to fill in the loop
+posthoc1 <- data.frame()
+posthoc2 <- data.frame()
+modelFit <- data.frame()
+
+# GLM loop 
+
+pars <- unique(r16S2017$Param)
+      for(i in 1:length(pars)){
+        
+        
+        
+        mod <- glm(value ~ GrazeTime * Treatment,
+                   data = filter(r16S2017, Param == pars[i]),
+                   family = gaussian(link = "identity"))
+        mf <- data.frame(Param = as.character(pars[i]),
+                         deviance = mod$deviance,
+                         null.deviance = mod$null.deviance,
+                         diff = mod$null.deviance - mod$deviance,
+                         df.null = mod$df.null,
+                         df.dev = mod$df.residual,
+                         rmse = round(RMSE(mod), 4))
+        modelFit <- rbind(mf, modelFit)
+        e <- as.data.frame(
+          emmeans(mod, pairwise ~ Treatment | GrazeTime, type = "response"))
+        df <- e %>% dplyr::select(c(contrasts.contrast, contrasts.GrazeTime,
+                                    contrasts.SE, contrasts.z.ratio, 
+                                    contrasts.p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc1 <- rbind(df, posthoc1)
+        e2 <- emmeans(mod, pairwise ~ GrazeTime | Treatment, type = "response")
+        e2 <- as.data.frame(e2$contrasts)
+        df1 <- e2 %>% dplyr::select(c(contrast, Treatment,
+                                      SE, z.ratio, 
+                                      p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc2 <- rbind(df1, posthoc2)
+        
+        
+      }
+    
+# clean up the model outputs for further analysis
+colnames(posthoc1) <- c("contrast", "contTS.Trt", "SE", "z.ratio", 
+                        "p.value", "Parameter")
+posthoc1$sign <- ifelse(posthoc1$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+colnames(posthoc2) <- c("contrast", "contTS.Trt", "SE", "z.ratio",
+                        "p.value", "Parameter")
+posthoc2$sign <- ifelse(posthoc2$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+# what is significant?
+sig.TS16S17R <- posthoc1[which(posthoc1$sign %in% "significant"),]
+sig.Trt16S17R <- posthoc2[which(posthoc2$sign %in% "significant"),]
+
+outall16S17R <- rbind(posthoc1, posthoc2)
+```
+
+#####16S 2018 bulk and rhizospheric - no significance
+
+```{r}
+a16S2018 <- alphadiv201816S[alphadiv201816S$soil_type %in% "combined",]
+
+# create empty data frames to fill in the loop
+posthoc1 <- data.frame()
+posthoc2 <- data.frame()
+modelFit <- data.frame()
+
+# GLM loop 
+
+pars <- unique(a16S2018$Param)
+      for(i in 1:length(pars)){
+        
+        
+        
+        mod <- glm(value ~ GrazeTime * Treatment,
+                   data = filter(a16S2018, Param == pars[i]),
+                   family = gaussian(link = "identity"))
+        mf <- data.frame(Param = as.character(pars[i]),
+                         deviance = mod$deviance,
+                         null.deviance = mod$null.deviance,
+                         diff = mod$null.deviance - mod$deviance,
+                         df.null = mod$df.null,
+                         df.dev = mod$df.residual,
+                         rmse = round(RMSE(mod), 4))
+        modelFit <- rbind(mf, modelFit)
+        e <- as.data.frame(
+          emmeans(mod, pairwise ~ Treatment | GrazeTime, type = "response"))
+        df <- e %>% dplyr::select(c(contrasts.contrast, contrasts.GrazeTime,
+                                    contrasts.SE, contrasts.z.ratio, 
+                                    contrasts.p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc1 <- rbind(df, posthoc1)
+        e2 <- emmeans(mod, pairwise ~ GrazeTime | Treatment, type = "response")
+        e2 <- as.data.frame(e2$contrasts)
+        df1 <- e2 %>% dplyr::select(c(contrast, Treatment,
+                                      SE, z.ratio, 
+                                      p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc2 <- rbind(df1, posthoc2)
+        
+        
+      }
+    
+# clean up the model outputs for further analysis
+colnames(posthoc1) <- c("contrast", "contTS.Trt", "SE", "z.ratio", 
+                        "p.value", "Parameter")
+posthoc1$sign <- ifelse(posthoc1$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+colnames(posthoc2) <- c("contrast", "contTS.Trt", "SE", "z.ratio",
+                        "p.value", "Parameter")
+posthoc2$sign <- ifelse(posthoc2$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+# what is significant?
+sig.TS16S18 <- posthoc1[which(posthoc1$sign %in% "significant"),]
+sig.Trt16S18 <- posthoc2[which(posthoc2$sign %in% "significant"),]
+
+outall16S18 <- rbind(posthoc1, posthoc2)
+```
+
+##### 16S 2018 - bulk - no significance
+
+```{r}
+b16S2018 <- alphadiv201816S[alphadiv201816S$soil_type %in% "bulk",]
+
+# create empty data frames to fill in the loop
+posthoc1 <- data.frame()
+posthoc2 <- data.frame()
+modelFit <- data.frame()
+
+# GLM loop 
+
+pars <- unique(b16S2018$Param)
+      for(i in 1:length(pars)){
+        
+        
+        
+        mod <- glm(value ~ GrazeTime * Treatment,
+                   data = filter(b16S2018, Param == pars[i]),
+                   family = gaussian(link = "identity"))
+        mf <- data.frame(Param = as.character(pars[i]),
+                         deviance = mod$deviance,
+                         null.deviance = mod$null.deviance,
+                         diff = mod$null.deviance - mod$deviance,
+                         df.null = mod$df.null,
+                         df.dev = mod$df.residual,
+                         rmse = round(RMSE(mod), 4))
+        modelFit <- rbind(mf, modelFit)
+        e <- as.data.frame(
+          emmeans(mod, pairwise ~ Treatment | GrazeTime, type = "response"))
+        df <- e %>% dplyr::select(c(contrasts.contrast, contrasts.GrazeTime,
+                                    contrasts.SE, contrasts.z.ratio, 
+                                    contrasts.p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc1 <- rbind(df, posthoc1)
+        e2 <- emmeans(mod, pairwise ~ GrazeTime | Treatment, type = "response")
+        e2 <- as.data.frame(e2$contrasts)
+        df1 <- e2 %>% dplyr::select(c(contrast, Treatment,
+                                      SE, z.ratio, 
+                                      p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc2 <- rbind(df1, posthoc2)
+        
+        
+      }
+    
+# clean up the model outputs for further analysis
+colnames(posthoc1) <- c("contrast", "contTS.Trt", "SE", "z.ratio", 
+                        "p.value", "Parameter")
+posthoc1$sign <- ifelse(posthoc1$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+colnames(posthoc2) <- c("contrast", "contTS.Trt", "SE", "z.ratio",
+                        "p.value", "Parameter")
+posthoc2$sign <- ifelse(posthoc2$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+# what is significant?
+sig.TS16S18B <- posthoc1[which(posthoc1$sign %in% "significant"),]
+sig.Trt16S18B <- posthoc2[which(posthoc2$sign %in% "significant"),]
+
+outall16S18B <- rbind(posthoc1, posthoc2)
+```
+
+##### 16S 2018 Rhizospheric 
+Simpson is significant at NG from PRE-1WK
+Simpson & InvSimpson significant from HI-NO at 1WK
+```{r}
+r16S2018 <- alphadiv201816S[alphadiv201816S$soil_type %in% "rhizo",]
+
+# create empty data frames to fill in the loop
+posthoc1 <- data.frame()
+posthoc2 <- data.frame()
+modelFit <- data.frame()
+
+# GLM loop 
+
+pars <- unique(r16S2018$Param)
+      for(i in 1:length(pars)){
+        
+        
+        
+        mod <- glm(value ~ GrazeTime * Treatment,
+                   data = filter(r16S2018, Param == pars[i]),
+                   family = gaussian(link = "identity"))
+        mf <- data.frame(Param = as.character(pars[i]),
+                         deviance = mod$deviance,
+                         null.deviance = mod$null.deviance,
+                         diff = mod$null.deviance - mod$deviance,
+                         df.null = mod$df.null,
+                         df.dev = mod$df.residual,
+                         rmse = round(RMSE(mod), 4))
+        modelFit <- rbind(mf, modelFit)
+        e <- as.data.frame(
+          emmeans(mod, pairwise ~ Treatment | GrazeTime, type = "response"))
+        df <- e %>% dplyr::select(c(contrasts.contrast, contrasts.GrazeTime,
+                                    contrasts.SE, contrasts.z.ratio, 
+                                    contrasts.p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc1 <- rbind(df, posthoc1)
+        e2 <- emmeans(mod, pairwise ~ GrazeTime | Treatment, type = "response")
+        e2 <- as.data.frame(e2$contrasts)
+        df1 <- e2 %>% dplyr::select(c(contrast, Treatment,
+                                      SE, z.ratio, 
+                                      p.value)) %>% 
+          mutate(Param = as.character(pars[i]))
+        posthoc2 <- rbind(df1, posthoc2)
+        
+        
+      }
+    
+# clean up the model outputs for further analysis
+colnames(posthoc1) <- c("contrast", "contTS.Trt", "SE", "z.ratio", 
+                        "p.value", "Parameter")
+posthoc1$sign <- ifelse(posthoc1$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+colnames(posthoc2) <- c("contrast", "contTS.Trt", "SE", "z.ratio",
+                        "p.value", "Parameter")
+posthoc2$sign <- ifelse(posthoc2$p.value <= 0.05,
+                        "significant",
+                        "not_significant")
+# what is significant?
+sig.TS16S18R <- posthoc1[which(posthoc1$sign %in% "significant"),]
+sig.Trt16S18R <- posthoc2[which(posthoc2$sign %in% "significant"),]
+
+outall16S18R <- rbind(posthoc1, posthoc2)
+```
