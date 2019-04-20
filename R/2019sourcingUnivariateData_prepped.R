@@ -11,8 +11,8 @@ if(!require(MuMIn)) install.packages("MuMIn")
 library(MuMIn)
 
 # prepData
-source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData.R")
-source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/prepData2018.R")
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/CustomFunctions/prepData.R")
+source("https://raw.githubusercontent.com/EmilyB17/grazing_soil_microbes/master/R/CustomFunctions/prepData2018.R")
 
 
 
